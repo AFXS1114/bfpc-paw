@@ -214,7 +214,7 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
       const item = historicalData[key as keyof typeof historicalData] as {
         "BILL FTM OF": string;
         "PRESENT": number | string; 
-        "PREVIOUS": number | string; // PREVIOUS can also be a string or number
+        "PREVIOUS": number | string; 
         "KWH USED": number | string;
         " TOTAL AMOUNT ": string;
       };
@@ -230,7 +230,7 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
         totalAmountBilledStr = totalAmountBilledStr.replace("₱", "").replace(/,/g, "");
         const totalAmountBilled = parseFloat(totalAmountBilledStr) || 0;
 
-        const pastReading = Number(item["PREVIOUS"]) || 0;
+        const pastReading = Number(item["PREVIOUS"]) || 0; // Use PREVIOUS from JSON, fallback to 0 if not a number
         let presentReading = item["PRESENT"] === "" ? 0 : Number(item["PRESENT"]);
         if (isNaN(presentReading)) {
           presentReading = 0; // Default to 0 if parsing results in NaN
@@ -239,8 +239,8 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
         const newEntry: Omit<MotherBillEntry, "id" | "createdAt"> & { createdAt: any } = {
           billingMonth,
           billingYear,
-          pastReading: pastReading,
-          presentReading: presentReading,
+          pastReading: pastReading, // Value from JSON's "PREVIOUS"
+          presentReading: presentReading, // Value from JSON's "PRESENT"
           totalKwh: kwhUsed, // "KWH USED" from JSON is the source of truth for total consumption
           totalAmountBilled,
           notes: "Historical data import",
@@ -257,5 +257,4 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
   }
   return { success: true, count: importedCount };
 }
-
     
