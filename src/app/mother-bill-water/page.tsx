@@ -43,7 +43,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, DocumentData, where } from "firebase/firestore";
-import { Save, Loader2, ListChecks, Edit, Zap } from "lucide-react";
+import { Save, Loader2, ListChecks, Edit, Droplet } from "lucide-react";
 import type { MotherBillEntry, MotherBillDocument } from "@/types";
 import { format } from "date-fns";
 
@@ -66,19 +66,18 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-const UTILITY_TYPE = 'power';
-const CONSUMPTION_UNIT = 'kWh';
-const UTILITY_ICON = <Zap className="h-5 w-5 mr-2 text-primary" />;
-const PAGE_TITLE = "Power Mother Bill Entry & Records";
-const FORM_TITLE = "Enter Main Power Utility Bill Details";
-const FORM_DESCRIPTION = "Input the details from your primary power bill.";
-const SAVE_BUTTON_TEXT = "Save Power Mother Bill";
-const RECORDS_TITLE = "Power Mother Bill Records";
-const RECORDS_DESCRIPTION = "List of all saved power mother bill entries.";
-const NO_RECORDS_TEXT = "No power mother bill records found.";
+const UTILITY_TYPE = 'water';
+const CONSUMPTION_UNIT = 'm³';
+const UTILITY_ICON = <Droplet className="h-5 w-5 mr-2 text-primary" />;
+const PAGE_TITLE = "Water Mother Bill Entry & Records";
+const FORM_TITLE = "Enter Main Water Utility Bill Details";
+const FORM_DESCRIPTION = "Input the details from your primary water bill.";
+const SAVE_BUTTON_TEXT = "Save Water Mother Bill";
+const RECORDS_TITLE = "Water Mother Bill Records";
+const RECORDS_DESCRIPTION = "List of all saved water mother bill entries.";
+const NO_RECORDS_TEXT = "No water mother bill records found.";
 
-
-export default function PowerMotherBillPage() {
+export default function WaterMotherBillPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [motherBills, setMotherBills] = useState<MotherBillDocument[]>([]);
@@ -252,7 +251,7 @@ export default function PowerMotherBillPage() {
                       <FormItem>
                         <FormLabel>Past Reading ({CONSUMPTION_UNIT})</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="e.g., 15000" {...field} />
+                          <Input type="number" placeholder="e.g., 120" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -265,7 +264,7 @@ export default function PowerMotherBillPage() {
                       <FormItem>
                         <FormLabel>Present Reading ({CONSUMPTION_UNIT})</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="e.g., 16500" {...field} />
+                          <Input type="number" placeholder="e.g., 135" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -284,7 +283,7 @@ export default function PowerMotherBillPage() {
                     <FormItem>
                       <FormLabel>Total Amount Billed ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" placeholder="e.g., 500.75" {...field} />
+                        <Input type="number" step="0.01" placeholder="e.g., 50.25" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
