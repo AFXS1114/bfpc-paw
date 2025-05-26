@@ -16,6 +16,8 @@ export interface PowerReading extends Reading {}
 
 export interface WaterReading extends Reading {}
 
+// This is a general MotherBill type, the existing /billing page uses something similar.
+// The new /mother-bill page will use MotherBillEntry for more specific power-related mother bills.
 export interface MotherBill {
   id:string;
   period: string; // e.g., "YYYY-MM"
@@ -55,7 +57,7 @@ export interface ClientDocument extends Client {
 }
 
 
-// New type for the power reading entries to be saved in Firestore
+// Type for the power reading entries to be saved in Firestore
 export interface PowerReadingEntry {
   id?: string; // Firestore will generate this
   clientId: string;
@@ -91,4 +93,16 @@ export interface PowerReadingDocument extends Omit<PowerReadingEntry, 'id' | 'da
   notes?: string;
 }
 
+// Type for the mother bill entries to be saved in Firestore
+export interface MotherBillEntry {
+  id?: string; // Firestore will generate this
+  billingMonth: string; // e.g., "January", "February"
+  billingYear: number;
+  pastReading: number; // kWh
+  presentReading: number; // kWh
+  totalKwh: number; // kWh (calculated)
+  totalAmountBilled: number; // $
+  notes?: string;
+  createdAt: FieldValue | Timestamp; // Firestore server timestamp
+}
     
