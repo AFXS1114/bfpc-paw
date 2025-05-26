@@ -1,7 +1,8 @@
+
 // src/app/clients/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,10 +25,19 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { UserPlus, Building, ScanLine, Loader2 } from "lucide-react";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from "firebase/firestore";
+import { UserPlus, Building, ScanLine, Loader2, ListChecks } from "lucide-react";
 import type { Client } from "@/types";
 
 const clientFormSchema = z.object({
@@ -40,9 +50,16 @@ const clientFormSchema = z.object({
 
 type ClientFormData = z.infer<typeof clientFormSchema>;
 
+interface ClientDocument extends Client {
+  id: string;
+  createdAt?: Timestamp; // Firestore Timestamp
+}
+
 export default function ClientsPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [clients, setClients] = useState<ClientDocument[]>([]);
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
 
   const form = useForm<ClientFormData>({
     resolver: zodResolver(clientFormSchema),
@@ -55,13 +72,37 @@ export default function ClientsPage() {
     },
   });
 
+  useEffect(() => {
+    setIsLoadingClients(true);
+    const clientsQuery = query(collection(db, "clients"), orderBy("createdAt", "desc"));
+    
+    const unsubscribe = onSnapshot(clientsQuery, (querySnapshot) => {
+      const clientsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      } as ClientDocument));
+      setClients(clientsData);
+      setIsLoadingClients(false);
+    }, (error) => {
+      console.error("Error fetching clients: ", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch clients.",
+        variant: "destructive",
+      });
+      setIsLoadingClients(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+
   async function onSubmit(data: ClientFormData) {
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, "clients"), {
         ...data,
         createdAt: serverTimestamp(),
-      } as Client);
+      } as Client); // Type assertion for Client without id
       toast({
         title: "Client Added Successfully",
         description: `Client ${data.clientName} has been added.`,
@@ -179,6 +220,52 @@ export default function ClientsPage() {
                 </Button>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ListChecks className="h-6 w-6 text-primary" />
+              Client Records
+            </CardTitle>
+            <CardDescription>
+              List of all registered clients.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingClients ? (
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : clients.length === 0 ? (
+              <p className="text-muted-foreground text-center">No clients found.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Stall No.</TableHead>
+                    <TableHead>Client Name</TableHead>
+                    <TableHead>Business Name</TableHead>
+                    <TableHead>Water Meter No.</TableHead>
+                    <TableHead>Power Meter No.</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {clients.map((client) => (
+                    <TableRow key={client.id}>
+                      <TableCell>{client.stallNo}</TableCell>
+                      <TableCell>{client.clientName}</TableCell>
+                      <TableCell>{client.businessName}</TableCell>
+                      <TableCell>{client.waterMeterNo}</TableCell>
+                      <TableCell>{client.powerMeterNo}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

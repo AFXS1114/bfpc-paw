@@ -1,4 +1,7 @@
+
 // This file can be used to define shared TypeScript types across the application.
+import type { Timestamp, FieldValue } from "firebase/firestore";
+
 
 export interface Reading {
   id: string;
@@ -12,7 +15,7 @@ export interface PowerReading extends Reading {}
 export interface WaterReading extends Reading {}
 
 export interface MotherBill {
-  id: string;
+  id:string;
   period: string; // e.g., "YYYY-MM"
   totalAmount: number;
   totalPowerConsumption?: number; // in kWh
@@ -40,5 +43,5 @@ export interface Client {
   businessName: string;
   waterMeterNo: string;
   powerMeterNo: string;
-  createdAt?: firebase.firestore.FieldValue; // For Firestore server timestamp
+  createdAt?: FieldValue | Timestamp; // For Firestore server timestamp or fetched Timestamp
 }
