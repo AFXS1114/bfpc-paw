@@ -105,4 +105,17 @@ export interface MotherBillEntry {
   notes?: string;
   createdAt: FieldValue | Timestamp; // Firestore server timestamp
 }
+
+// For mother bill documents fetched from Firestore
+export interface MotherBillDocument extends Omit<MotherBillEntry, 'id' | 'createdAt'> {
+    id: string;
+    billingMonth: string;
+    billingYear: number;
+    pastReading: number;
+    presentReading: number;
+    totalKwh: number;
+    totalAmountBilled: number;
+    notes?: string;
+    createdAt: Date; // JS Date object for easier use in the component
+}
     

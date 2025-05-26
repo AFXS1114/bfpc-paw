@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,7 +15,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
@@ -32,11 +31,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { ReceiptText, Save, Loader2, FileText } from "lucide-react";
-import type { MotherBillEntry } from "@/types";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, DocumentData } from "firebase/firestore";
+import { ReceiptText, Save, Loader2, FileText, ListChecks, Edit } from "lucide-react";
+import type { MotherBillEntry, MotherBillDocument } from "@/types";
+import { format } from "date-fns";
 
 const motherBillFormSchema = z.object({
   billingMonth: z.string().min(1, "Billing month is required."),
@@ -60,6 +69,8 @@ const MONTHS = [
 export default function MotherBillPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [motherBills, setMotherBills] = useState<MotherBillDocument[]>([]);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
 
   const form = useForm<MotherBillFormData>({
     resolver: zodResolver(motherBillFormSchema),
@@ -85,6 +96,34 @@ export default function MotherBillPage() {
     }
     return 0;
   }, [pastReading, presentReading]);
+
+  useEffect(() => {
+    setIsLoadingRecords(true);
+    const recordsQuery = query(collection(db, "mother-bills"), orderBy("createdAt", "desc"));
+    
+    const unsubscribe = onSnapshot(recordsQuery, (querySnapshot) => {
+      const recordsData = querySnapshot.docs.map(doc => {
+        const data = doc.data() as DocumentData;
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: (data.createdAt as Timestamp)?.toDate(), // Convert Timestamp to Date
+        } as MotherBillDocument;
+      });
+      setMotherBills(recordsData);
+      setIsLoadingRecords(false);
+    }, (error) => {
+      console.error("Error fetching mother bills: ", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch mother bill records.",
+        variant: "destructive",
+      });
+      setIsLoadingRecords(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
 
   async function onSubmit(data: MotherBillFormData) {
     setIsSubmitting(true);
@@ -125,10 +164,15 @@ export default function MotherBillPage() {
       setIsSubmitting(false);
     }
   }
+  
+  const handleEditRecord = (recordId: string) => {
+    // Placeholder for edit functionality
+    toast({ title: "Edit Clicked", description: `Would edit mother bill record: ${recordId}` });
+  };
 
   return (
     <main className="flex flex-1 flex-col">
-      <PageHeader title="Mother Bill Entry" />
+      <PageHeader title="Mother Bill Entry & Records" />
       <div className="flex-1 space-y-6 p-4 md:p-6">
         <Card className="shadow-lg">
           <CardHeader>
@@ -255,6 +299,67 @@ export default function MotherBillPage() {
                 </Button>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ListChecks className="h-6 w-6 text-primary" />
+              Mother Bill Records
+            </CardTitle>
+            <CardDescription>
+              List of all saved mother bill entries.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingRecords ? (
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : motherBills.length === 0 ? (
+              <p className="text-muted-foreground text-center">No mother bill records found.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Billing Period</TableHead>
+                    <TableHead className="text-right">Past (kWh)</TableHead>
+                    <TableHead className="text-right">Present (kWh)</TableHead>
+                    <TableHead className="text-right">Total (kWh)</TableHead>
+                    <TableHead className="text-right">Amount ($)</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead>Recorded On</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {motherBills.map((bill) => (
+                    <TableRow key={bill.id}>
+                      <TableCell>{bill.billingMonth} {bill.billingYear}</TableCell>
+                      <TableCell className="text-right">{bill.pastReading.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{bill.presentReading.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold">{bill.totalKwh.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{bill.totalAmountBilled.toLocaleString(undefined, { style: 'currency', currency: 'USD' })}</TableCell>
+                      <TableCell className="max-w-[150px] truncate" title={bill.notes}>{bill.notes || "-"}</TableCell>
+                      <TableCell>{bill.createdAt ? format(new Date(bill.createdAt), "MMM dd, yyyy") : 'N/A'}</TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => bill.id && handleEditRecord(bill.id)}
+                          disabled={!bill.id}
+                        >
+                          <Edit className="mr-1 h-3 w-3" /> Edit
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>
