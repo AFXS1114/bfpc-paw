@@ -51,6 +51,12 @@ const MONTHS = [
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i); // Last 5 years and next 5 years
 
+// Define unique non-empty values for "all" select items
+const ALL_CLIENTS_SELECT_ITEM_VALUE = "__all_clients__";
+const ANY_MONTH_SELECT_ITEM_VALUE = "__any_month__";
+const ANY_YEAR_SELECT_ITEM_VALUE = "__any_year__";
+
+
 export default function PowerReadingsPage() {
   const { toast } = useToast();
   const [clients, setClients] = useState<ClientDocument[]>([]);
@@ -164,15 +170,17 @@ export default function PowerReadingsPage() {
               <div>
                 <Label htmlFor="filter-client">Client Name</Label>
                 <Select
-                  value={filterClientId}
-                  onValueChange={setFilterClientId}
+                  value={filterClientId} // Select value can be "", which shows the placeholder
+                  onValueChange={(selectedValue) => {
+                    setFilterClientId(selectedValue === ALL_CLIENTS_SELECT_ITEM_VALUE ? "" : selectedValue);
+                  }}
                   disabled={isLoadingClients}
                 >
                   <SelectTrigger id="filter-client" className="mt-1">
                     <SelectValue placeholder={isLoadingClients ? "Loading..." : "All Clients"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Clients</SelectItem>
+                    <SelectItem value={ALL_CLIENTS_SELECT_ITEM_VALUE}>All Clients</SelectItem>
                     {clients.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.clientName} ({client.stallNo})
@@ -208,12 +216,17 @@ export default function PowerReadingsPage() {
               </div>
               <div>
                 <Label htmlFor="filter-billing-month">Billing Month</Label>
-                <Select value={filterBillingMonth} onValueChange={setFilterBillingMonth}>
+                <Select 
+                  value={filterBillingMonth}
+                  onValueChange={(selectedValue) => {
+                    setFilterBillingMonth(selectedValue === ANY_MONTH_SELECT_ITEM_VALUE ? "" : selectedValue);
+                  }}
+                >
                   <SelectTrigger id="filter-billing-month" className="mt-1">
                     <SelectValue placeholder="Any Month" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any Month</SelectItem>
+                    <SelectItem value={ANY_MONTH_SELECT_ITEM_VALUE}>Any Month</SelectItem>
                     {MONTHS.map((month) => (
                       <SelectItem key={month} value={month}>{month}</SelectItem>
                     ))}
@@ -222,12 +235,17 @@ export default function PowerReadingsPage() {
               </div>
               <div>
                 <Label htmlFor="filter-billing-year">Billing Year</Label>
-                 <Select value={filterBillingYear} onValueChange={setFilterBillingYear}>
+                 <Select 
+                    value={filterBillingYear} 
+                    onValueChange={(selectedValue) => {
+                      setFilterBillingYear(selectedValue === ANY_YEAR_SELECT_ITEM_VALUE ? "" : selectedValue);
+                    }}
+                  >
                   <SelectTrigger id="filter-billing-year" className="mt-1">
                     <SelectValue placeholder="Any Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any Year</SelectItem>
+                    <SelectItem value={ANY_YEAR_SELECT_ITEM_VALUE}>Any Year</SelectItem>
                     {YEARS.map((year) => (
                       <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
                     ))}
@@ -307,5 +325,3 @@ export default function PowerReadingsPage() {
     </main>
   );
 }
-
-    
