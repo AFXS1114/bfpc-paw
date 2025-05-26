@@ -32,3 +32,13 @@ export interface TenantBill {
   waterConsumption?: number;
   calculatedAmount: number;
 }
+
+export interface Client {
+  id?: string; // Firestore will generate this
+  stallNo: string;
+  clientName: string;
+  businessName: string;
+  waterMeterNo: string;
+  powerMeterNo: string;
+  createdAt?: firebase.firestore.FieldValue; // For Firestore server timestamp
+}

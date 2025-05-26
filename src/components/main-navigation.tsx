@@ -1,8 +1,9 @@
+// src/components/main-navigation.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Settings, Droplet, Zap, BarChart3, LayoutDashboard } from "lucide-react";
+import { Home, Settings, Droplet, Zap, BarChart3, LayoutDashboard, Users } from "lucide-react"; // Added Users
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -15,6 +16,7 @@ const navItems = [
   { href: "/power", label: "Power", icon: Zap },
   { href: "/water", label: "Water", icon: Droplet },
   { href: "/billing", label: "Billing", icon: BarChart3 },
+  { href: "/clients", label: "Clients", icon: Users }, // Added Clients Link
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
