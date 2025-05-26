@@ -230,18 +230,25 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
         totalAmountBilledStr = totalAmountBilledStr.replace("₱", "").replace(/,/g, "");
         const totalAmountBilled = parseFloat(totalAmountBilledStr) || 0;
 
-        const pastReading = Number(item["PREVIOUS"]) || 0; // Use PREVIOUS from JSON, fallback to 0 if not a number
+        // Explicitly parse "PREVIOUS" field from JSON for pastReading
+        let rawPastReading = Number(item["PREVIOUS"]);
+        if (isNaN(rawPastReading)) { // Handle cases where "PREVIOUS" might not be a valid number string
+          rawPastReading = 0;
+        }
+        const pastReading = rawPastReading;
+        
+        // Parse "PRESENT" field from JSON for presentReading
         let presentReading = item["PRESENT"] === "" ? 0 : Number(item["PRESENT"]);
-        if (isNaN(presentReading)) {
-          presentReading = 0; // Default to 0 if parsing results in NaN
+        if (isNaN(presentReading)) { // Handle cases where "PRESENT" might not be a valid number string
+          presentReading = 0; 
         }
         
         const newEntry: Omit<MotherBillEntry, "id" | "createdAt"> & { createdAt: any } = {
           billingMonth,
           billingYear,
-          pastReading: pastReading, // Value from JSON's "PREVIOUS"
-          presentReading: presentReading, // Value from JSON's "PRESENT"
-          totalKwh: kwhUsed, // "KWH USED" from JSON is the source of truth for total consumption
+          pastReading: pastReading,       // Directly reflects the numeric value from JSON's "PREVIOUS"
+          presentReading: presentReading, // Directly reflects the numeric value from JSON's "PRESENT"
+          totalKwh: kwhUsed,              // "KWH USED" from JSON is the source of truth for total consumption
           totalAmountBilled,
           notes: "Historical data import",
           createdAt: serverTimestamp(),
@@ -257,4 +264,6 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
   }
   return { success: true, count: importedCount };
 }
+    
+
     
