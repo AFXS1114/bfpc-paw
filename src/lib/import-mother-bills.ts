@@ -1,6 +1,6 @@
 
 // src/lib/import-mother-bills.ts
-"use server"; // Marking as server action, though it's client-invoked for this one-time utility
+"use server"; 
 
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -184,14 +184,14 @@ const historicalData = {
   },
   "-ORDUkHbrm63IUezY32s": {
     "BILL FTM OF": "February 2025",
-    "PRESENT": "", // Empty string case
+    "PRESENT": "", 
     "PREVIOUS": 1535,
     "KWH USED": 7000,
     " TOTAL AMOUNT ": " ₱65,745.98 "
   },
   "-ORDUkHbS0ob0bEDehOg": {
     "BILL FTM OF": "March 2025",
-    "PRESENT": "", // Empty string case
+    "PRESENT": "", 
     "PREVIOUS": 0,
     "KWH USED": 6720,
     " TOTAL AMOUNT ": " ₱64,413.20 "
@@ -223,32 +223,31 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
         const billPeriod = item["BILL FTM OF"].split(" ");
         const billingMonth = billPeriod[0];
         const billingYear = parseInt(billPeriod[1], 10);
-
-        const kwhUsed = Number(item["KWH USED"]) || 0;
+        
+        const totalConsumption = Number(item["KWH USED"]) || 0;
         
         let totalAmountBilledStr = item[" TOTAL AMOUNT "].trim();
         totalAmountBilledStr = totalAmountBilledStr.replace("₱", "").replace(/,/g, "");
         const totalAmountBilled = parseFloat(totalAmountBilledStr) || 0;
 
-        // Explicitly parse "PREVIOUS" field from JSON for pastReading
         let rawPastReading = Number(item["PREVIOUS"]);
-        if (isNaN(rawPastReading)) { // Handle cases where "PREVIOUS" might not be a valid number string
+        if (isNaN(rawPastReading)) { 
           rawPastReading = 0;
         }
         const pastReading = rawPastReading;
         
-        // Parse "PRESENT" field from JSON for presentReading
         let presentReading = item["PRESENT"] === "" ? 0 : Number(item["PRESENT"]);
-        if (isNaN(presentReading)) { // Handle cases where "PRESENT" might not be a valid number string
+        if (isNaN(presentReading)) { 
           presentReading = 0; 
         }
         
         const newEntry: Omit<MotherBillEntry, "id" | "createdAt"> & { createdAt: any } = {
+          utilityType: 'power', // All historical data is for power
           billingMonth,
           billingYear,
-          pastReading: pastReading,       // Directly reflects the numeric value from JSON's "PREVIOUS"
-          presentReading: presentReading, // Directly reflects the numeric value from JSON's "PRESENT"
-          totalKwh: kwhUsed,              // "KWH USED" from JSON is the source of truth for total consumption
+          pastReading: pastReading,       
+          presentReading: presentReading, 
+          totalConsumption: totalConsumption, // "KWH USED" from JSON maps to totalConsumption
           totalAmountBilled,
           notes: "Historical data import",
           createdAt: serverTimestamp(),
@@ -264,6 +263,3 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
   }
   return { success: true, count: importedCount };
 }
-    
-
-    

@@ -93,14 +93,17 @@ export interface PowerReadingDocument extends Omit<PowerReadingEntry, 'id' | 'da
   notes?: string;
 }
 
+export type UtilityType = 'power' | 'water';
+
 // Type for the mother bill entries to be saved in Firestore
 export interface MotherBillEntry {
   id?: string; // Firestore will generate this
+  utilityType: UtilityType;
   billingMonth: string; // e.g., "January", "February"
   billingYear: number;
-  pastReading: number; // kWh
-  presentReading: number; // kWh
-  totalKwh: number; // kWh (calculated)
+  pastReading: number; 
+  presentReading: number; 
+  totalConsumption: number; // Generic consumption unit (kWh for power, m³ for water)
   totalAmountBilled: number; // $
   notes?: string;
   createdAt: FieldValue | Timestamp; // Firestore server timestamp
@@ -109,11 +112,12 @@ export interface MotherBillEntry {
 // For mother bill documents fetched from Firestore
 export interface MotherBillDocument extends Omit<MotherBillEntry, 'id' | 'createdAt'> {
     id: string;
+    utilityType: UtilityType;
     billingMonth: string;
     billingYear: number;
     pastReading: number;
     presentReading: number;
-    totalKwh: number;
+    totalConsumption: number;
     totalAmountBilled: number;
     notes?: string;
     createdAt: Date; // JS Date object for easier use in the component
