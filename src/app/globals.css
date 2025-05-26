@@ -34,7 +34,7 @@ body {
     --destructive-foreground: 0 0% 98%;
 
     --border: 216 8% 25%; /* Same as secondary for subtle borders */
-    --input: 216 8% 25%; /* Input background */
+    --input: 30 60% 45%; /* Subtle orange for input borders and related UI */
     --ring: 30 78% 52%; /* Accent color for rings */
 
     --radius: 0.5rem;
@@ -84,7 +84,7 @@ body {
     --destructive-foreground: 0 0% 98%;
 
     --border: 206 30% 88%; /* Light gray/blue border */
-    --input: 206 30% 88%;  /* Input background */
+    --input: 30 70% 80%;  /* Subtle orange for input borders and related UI */
     --ring: 207 70% 53%;   /* Primary color for rings */
 
     --radius: 0.5rem;
