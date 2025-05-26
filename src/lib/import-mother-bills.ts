@@ -184,14 +184,14 @@ const historicalData = {
   },
   "-ORDUkHbrm63IUezY32s": {
     "BILL FTM OF": "February 2025",
-    "PRESENT": "",
+    "PRESENT": "", // Empty string case
     "PREVIOUS": 1535,
     "KWH USED": 7000,
     " TOTAL AMOUNT ": " ₱65,745.98 "
   },
   "-ORDUkHbS0ob0bEDehOg": {
     "BILL FTM OF": "March 2025",
-    "PRESENT": "",
+    "PRESENT": "", // Empty string case
     "PREVIOUS": 0,
     "KWH USED": 6720,
     " TOTAL AMOUNT ": " ₱64,413.20 "
@@ -211,12 +211,11 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
 
   for (const key in historicalData) {
     if (Object.prototype.hasOwnProperty.call(historicalData, key)) {
-      // The type assertion helps TypeScript understand the structure of item
       const item = historicalData[key as keyof typeof historicalData] as {
         "BILL FTM OF": string;
-        "PRESENT": number | string; // Can be number or empty string
-        "PREVIOUS": number;
-        "KWH USED": number;
+        "PRESENT": number | string; 
+        "PREVIOUS": number | string; // PREVIOUS can also be a string or number
+        "KWH USED": number | string;
         " TOTAL AMOUNT ": string;
       };
 
@@ -231,12 +230,18 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
         totalAmountBilledStr = totalAmountBilledStr.replace("₱", "").replace(/,/g, "");
         const totalAmountBilled = parseFloat(totalAmountBilledStr) || 0;
 
+        const pastReading = Number(item["PREVIOUS"]) || 0;
+        let presentReading = item["PRESENT"] === "" ? 0 : Number(item["PRESENT"]);
+        if (isNaN(presentReading)) {
+          presentReading = 0; // Default to 0 if parsing results in NaN
+        }
+        
         const newEntry: Omit<MotherBillEntry, "id" | "createdAt"> & { createdAt: any } = {
           billingMonth,
           billingYear,
-          pastReading: 0, // As discussed, setting pastReading to 0
-          presentReading: kwhUsed, // Setting presentReading to KWH USED
-          totalKwh: kwhUsed, // KWH USED from JSON is our totalKwh
+          pastReading: pastReading,
+          presentReading: presentReading,
+          totalKwh: kwhUsed, // "KWH USED" from JSON is the source of truth for total consumption
           totalAmountBilled,
           notes: "Historical data import",
           createdAt: serverTimestamp(),
@@ -252,3 +257,5 @@ export async function importHistoricalMotherBills(): Promise<{ success: boolean;
   }
   return { success: true, count: importedCount };
 }
+
+    
