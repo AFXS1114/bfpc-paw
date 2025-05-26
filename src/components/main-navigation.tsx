@@ -1,9 +1,10 @@
+
 // src/components/main-navigation.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Settings, Droplet, Zap, BarChart3, LayoutDashboard, Users } from "lucide-react"; // Added Users
+import { Home, Settings, Droplet, Zap, BarChart3, LayoutDashboard, Users, ListTree } from "lucide-react"; // Added ListTree
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -13,10 +14,11 @@ import {
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/power", label: "Power", icon: Zap },
+  { href: "/power", label: "Power Entry", icon: Zap },
+  { href: "/power-readings", label: "Power Readings", icon: ListTree }, // Added Power Readings Link
   { href: "/water", label: "Water", icon: Droplet },
   { href: "/billing", label: "Billing", icon: BarChart3 },
-  { href: "/clients", label: "Clients", icon: Users }, // Added Clients Link
+  { href: "/clients", label: "Clients", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -49,3 +51,5 @@ export function MainNavigation() {
     </SidebarMenu>
   );
 }
+
+    

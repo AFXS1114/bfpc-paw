@@ -62,19 +62,33 @@ export interface PowerReadingEntry {
   clientName: string; // Denormalized for easier display
   stallNo: string; // Denormalized
   powerMeterNo: string; // Denormalized
-  dateBilled: FieldValue | Timestamp; // Date of billing
+  dateBilled: FieldValue | Timestamp; // Date of billing // FieldValue for writing, Timestamp for reading
   billingMonth: string; // e.g., "January", "February"
   billingYear: number;
   previousReading: number;
   presentReading: number;
   totalKwh: number;
   notes?: string;
-  createdAt: FieldValue | Timestamp; // Firestore server timestamp
+  createdAt: FieldValue | Timestamp; // Firestore server timestamp // FieldValue for writing, Timestamp for reading
 }
 
 // For power reading documents fetched from Firestore, including their ID
-export interface PowerReadingDocument extends Omit<PowerReadingEntry, 'dateBilled' | 'createdAt'> {
+// Note: dateBilled and createdAt will be JS Date objects after fetching and transformation
+export interface PowerReadingDocument extends Omit<PowerReadingEntry, 'id' | 'dateBilled' | 'createdAt'> {
   id: string;
-  dateBilled: Timestamp;
-  createdAt: Timestamp;
+  dateBilled: Date; // JS Date object for easier use in the component
+  createdAt: Date;  // JS Date object
+  // All other fields from PowerReadingEntry remain as they are
+  clientId: string;
+  clientName: string;
+  stallNo: string;
+  powerMeterNo: string;
+  billingMonth: string;
+  billingYear: number;
+  previousReading: number;
+  presentReading: number;
+  totalKwh: number;
+  notes?: string;
 }
+
+    
