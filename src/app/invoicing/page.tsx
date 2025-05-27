@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument } from "@/types";
+import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument, ReadingPerformerDocument } from "@/types";
 import { FileText, Search, Loader2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { InvoiceTemplate } from "@/components/invoice-template";
@@ -158,7 +158,23 @@ export default function InvoicingPage() {
         }
       } catch (sigError) {
         console.warn("Could not fetch signatory:", sigError);
-        // Non-critical error, invoice can still be generated
+      }
+
+      // Fetch the latest reading performer
+      let readingPerformerDetails: { name: string; position: string } | undefined = undefined;
+      try {
+        const readingPerformersQuery = query(
+          collection(db, "reading-performers"),
+          orderBy("createdAt", "desc"),
+          limit(1)
+        );
+        const readingPerformerSnapshot = await getDocs(readingPerformersQuery);
+        if (!readingPerformerSnapshot.empty) {
+          const performerDoc = readingPerformerSnapshot.docs[0].data() as ReadingPerformerDocument;
+          readingPerformerDetails = { name: performerDoc.name, position: performerDoc.position };
+        }
+      } catch (perfError) {
+        console.warn("Could not fetch reading performer:", perfError);
       }
 
       const currentDate = new Date();
@@ -185,6 +201,8 @@ export default function InvoicingPage() {
         paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office.",
         signatoryName: signatoryDetails?.name,
         signatoryPosition: signatoryDetails?.position,
+        readingPerformerName: readingPerformerDetails?.name,
+        readingPerformerPosition: readingPerformerDetails?.position,
       };
       setInvoiceData(generatedInvoiceData);
 

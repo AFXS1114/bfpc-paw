@@ -149,6 +149,10 @@ export interface InvoiceData {
   // Signatory Details
   signatoryName?: string;
   signatoryPosition?: string;
+
+  // Reading Performer Details
+  readingPerformerName?: string;
+  readingPerformerPosition?: string;
 }
 
 // App User Management
@@ -188,6 +192,21 @@ export interface SignatoryEntry {
 }
 
 export interface SignatoryDocument extends Omit<SignatoryEntry, 'id' | 'createdAt'> {
+  id: string;
+  name: string;
+  position: string;
+  createdAt: Date;
+}
+
+// Reading Performer Management
+export interface ReadingPerformerEntry {
+  id?: string; // Firestore will generate this
+  name: string;
+  position: string;
+  createdAt: FieldValue | Timestamp;
+}
+
+export interface ReadingPerformerDocument extends Omit<ReadingPerformerEntry, 'id' | 'createdAt'> {
   id: string;
   name: string;
   position: string;

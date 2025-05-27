@@ -7,16 +7,18 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3 } from "lucide-react";
+import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog } from "lucide-react"; // Added UserCog
 import { importHistoricalMotherBills } from "@/lib/import-mother-bills";
 import { AddUserModal } from "@/components/add-user-modal";
 import { AddSignatoryModal } from "@/components/add-signatory-modal";
+import { AddReadingPerformerModal } from "@/components/add-reading-performer-modal"; // Import new modal
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const [isImporting, setIsImporting] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [isAddSignatoryModalOpen, setIsAddSignatoryModalOpen] = useState(false);
+  const [isAddReadingPerformerModalOpen, setIsAddReadingPerformerModalOpen] = useState(false); // State for new modal
 
   const handleImportData = async () => {
     setIsImporting(true);
@@ -105,18 +107,21 @@ export default function SettingsPage() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Edit3 className="h-6 w-6 text-primary" />
-              Signatory Management
+              <Edit3 className="h-6 w-6 text-primary" /> {/* Could use a more generic icon for "Personnel" or "Roles" */}
+              Signatories & Performers
             </CardTitle>
-            <CardDescription>Manage signatories for invoices.</CardDescription>
+            <CardDescription>Manage personnel involved in billing and readings.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button onClick={() => setIsAddSignatoryModalOpen(true)}>
-              <UserPlus className="mr-2 h-4 w-4" /> Add Signatory
+              <UserPlus className="mr-2 h-4 w-4" /> Add Invoice Signatory
+            </Button>
+            <Button onClick={() => setIsAddReadingPerformerModalOpen(true)} variant="outline">
+              <UserCog className="mr-2 h-4 w-4" /> Add Reading Performer 
             </Button>
             {/* Placeholder for signatory list/table */}
             <p className="text-sm text-muted-foreground mt-2">
-              Signatory list and editing capabilities will be added here in the future.
+              Personnel lists and editing capabilities will be added here in the future.
             </p>
           </CardContent>
         </Card>
@@ -134,6 +139,7 @@ export default function SettingsPage() {
       </div>
       <AddUserModal isOpen={isAddUserModalOpen} onOpenChange={setIsAddUserModalOpen} />
       <AddSignatoryModal isOpen={isAddSignatoryModalOpen} onOpenChange={setIsAddSignatoryModalOpen} />
+      <AddReadingPerformerModal isOpen={isAddReadingPerformerModalOpen} onOpenChange={setIsAddReadingPerformerModalOpen} /> {/* Render new modal */}
     </main>
   );
 }

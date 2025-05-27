@@ -123,22 +123,27 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </footer>
       )}
 
-      {/* Signatory Section */}
-      {(data.signatoryName || data.signatoryPosition) && (
-        <div className="mt-12 pt-8 border-t border-neutral-300">
-          <div className="grid grid-cols-2 gap-8">
+      {/* Personnel Section */}
+      <div className="mt-12 pt-8 border-t border-neutral-300">
+        <div className="grid grid-cols-2 gap-8">
+          {(data.readingPerformerName || data.readingPerformerPosition) && (
             <div>
+              <p className="mb-1 text-sm font-medium text-neutral-700">Readings Performed by:</p>
+              <div className="mt-10 mb-1 border-b border-neutral-500 h-4"></div> {/* Signature line */}
+              <p className="mt-1 text-sm font-semibold text-neutral-800">{data.readingPerformerName || "_________________________"}</p>
+              <p className="text-xs text-neutral-600">{data.readingPerformerPosition || "Position"}</p>
+            </div>
+          )}
+           {(data.signatoryName || data.signatoryPosition) && (
+            <div className={(data.readingPerformerName || data.readingPerformerPosition) ? "" : "col-start-1"}> {/* Adjust if only one signatory type exists */}
               <p className="mb-1 text-sm font-medium text-neutral-700">Prepared by:</p>
               <div className="mt-10 mb-1 border-b border-neutral-500 h-4"></div> {/* Signature line */}
               <p className="mt-1 text-sm font-semibold text-neutral-800">{data.signatoryName || "_________________________"}</p>
               <p className="text-xs text-neutral-600">{data.signatoryPosition || "Position"}</p>
             </div>
-            <div>
-              {/* Placeholder for another signatory if needed in the future */}
-            </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
        <div className="mt-8 text-center text-xs text-neutral-500">
         <p>Thank you for your business!</p>
