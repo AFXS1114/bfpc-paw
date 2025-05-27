@@ -1,4 +1,3 @@
-
 // This file can be used to define shared TypeScript types across the application.
 import type { Timestamp, FieldValue } from "firebase/firestore";
 
@@ -114,19 +113,36 @@ export interface MotherBillDocument extends Omit<MotherBillEntry, 'id' | 'create
     createdAt: Date; 
 }
 
-// For invoice generation modal
+// For invoice generation modal and dedicated invoicing page
 export interface InvoiceData {
+  // From PowerReadingDocument
   clientName: string;
   stallNo: string;
-  billingPeriod: string;
+  billingMonth: string;
+  billingYear: number;
   clientPreviousReading: number;
   clientPresentReading: number;
   clientTotalKwh: number;
+
+  // From MotherBillDocument
   motherBillTotalAmount: number;
   motherBillTotalConsumption: number;
+
+  // Calculated
   basicRate: number;
   amountBeforeVAT: number;
   vatAmount: number;
   totalAmountDue: number;
+
+  // New fields for dedicated invoice
+  invoiceNumber: string;
+  invoiceDate: string; // Formatted date string
+  dueDate?: string; // Formatted date string e.g. "Due upon receipt" or a specific date
+  
+  // Company details (placeholders - can be configured later if needed)
+  companyName: string; 
+  companyAddressLine1: string;
+  companyAddressLine2: string;
+  companyLogoUrl?: string; // URL to a company logo
+  paymentInstructions?: string;
 }
-    

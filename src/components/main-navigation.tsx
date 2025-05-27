@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Settings, Droplet, Zap, BarChart3, LayoutDashboard, Users, ListTree, ReceiptText } from "lucide-react";
+import { Home, Settings, Droplet, Zap, BarChart3, LayoutDashboard, Users, ListTree, ReceiptText, FileText as InvoiceIcon } from "lucide-react"; // Renamed FileText to avoid conflict
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -15,11 +15,12 @@ import {
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/mother-bill", label: "Mother Bill (Power)", icon: ReceiptText }, 
-  { href: "/mother-bill-water", label: "Mother Bill (Water)", icon: Droplet }, // New Water Mother Bill Link
+  { href: "/mother-bill-water", label: "Mother Bill (Water)", icon: Droplet }, 
   { href: "/power", label: "Power Entry", icon: Zap },
   { href: "/power-readings", label: "Power Readings", icon: ListTree },
   { href: "/water", label: "Water", icon: Droplet }, // This might be for individual tenant water entry later
-  { href: "/billing", label: "Billing", icon: BarChart3 },
+  { href: "/invoicing", label: "Invoicing", icon: InvoiceIcon }, // New Invoicing Link
+  { href: "/billing", label: "Billing Summary", icon: BarChart3 }, // Renamed
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
