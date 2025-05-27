@@ -1,4 +1,9 @@
-import type { Metadata } from 'next';
+
+"use client"; // Required for using hooks like useEffect, useRouter, usePathname
+
+import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -8,13 +13,12 @@ import {
   Sidebar,
   SidebarHeader,
   SidebarContent,
-  SidebarInset,
-  SidebarFooter, // Added for potential future use
+  SidebarFooter,
 } from '@/components/ui/sidebar';
 import { AppLogo } from '@/components/app-logo';
 import { MainNavigation } from '@/components/main-navigation';
 import { Button } from '@/components/ui/button';
-import { UserCircle } from 'lucide-react';
+import { UserCircle, Loader2 } from 'lucide-react';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -26,16 +30,55 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-export const metadata: Metadata = {
-  title: 'PAW - Power & Water Management',
-  description: 'Record and manage power and water billing.',
-};
+// export const metadata: Metadata = { // Cannot use static metadata with "use client"
+//   title: 'PAW - Power & Water Management',
+//   description: 'Record and manage power and water billing.',
+// };
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isVerifying, setIsVerifying] = useState(true); // Start with verifying state
+
+  useEffect(() => {
+    // Set document title dynamically
+    document.title = 'PAW - Power & Water Management';
+
+    const isVerified = localStorage.getItem('pawUserVerified') === 'true';
+    if (!isVerified && pathname !== '/login') {
+      router.replace('/login');
+    } else {
+      setIsVerifying(false); // Verification done
+    }
+  }, [pathname, router]);
+
+  if (isVerifying && pathname !== '/login') {
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex items-center justify-center min-h-screen bg-background`}>
+          <Loader2 className="h-16 w-16 animate-spin text-primary" />
+        </body>
+      </html>
+    );
+  }
+  
+  if (pathname === '/login') {
+     return (
+      <html lang="en" suppressHydrationWarning>
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+          <ThemeProvider defaultTheme="fire-dark" storageKey="paw-app-theme">
+            {children}
+            <Toaster />
+          </ThemeProvider>
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
@@ -50,7 +93,6 @@ export default function RootLayout({
                   <MainNavigation />
                 </SidebarContent>
                 <SidebarFooter className="p-2 border-t">
-                   {/* Placeholder for user profile or other footer items */}
                   <Button variant="ghost" className="w-full justify-start gap-2">
                     <UserCircle className="h-5 w-5" />
                     <span>Profile</span>
