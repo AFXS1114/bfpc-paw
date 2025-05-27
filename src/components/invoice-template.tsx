@@ -23,7 +23,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
 
   // This function renders the actual content of one invoice
   const renderInvoiceContent = () => (
-    <div className="bg-white text-neutral-900 font-sans text-sm w-full border border-neutral-300 rounded-lg shadow-lg p-6 flex flex-col min-h-[1000px]"> {/* Adjusted padding and min-height for portrait */}
+    <div className="bg-white text-neutral-900 font-sans text-sm w-full border border-neutral-300 rounded-lg shadow-lg p-6 flex flex-col min-h-[1000px]">
       <header className="flex justify-between items-start pb-4 border-b border-neutral-300 mb-4">
         <div>
           <Image
@@ -65,7 +65,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
       <section className="mb-4">
         <table className="w-full border-collapse text-xs">
           <thead>
-            <tr className="bg-neutral-100 text-left text-neutral-800">
+            <tr className="bg-white text-left text-neutral-800"> {/* Changed bg-neutral-100 to bg-white */}
               <th className="p-2 border border-neutral-300 font-medium">Description</th>
               <th className="p-2 border border-neutral-300 font-medium text-right whitespace-nowrap">Prev.<br/>(kWh)</th>
               <th className="p-2 border border-neutral-300 font-medium text-right whitespace-nowrap">Pres.<br/>(kWh)</th>
@@ -87,7 +87,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </table>
       </section>
 
-      <section className="mb-4 p-2 bg-neutral-50 rounded-md text-xs text-neutral-700">
+      <section className="mb-4 p-2 bg-white rounded-md text-xs text-neutral-700 border border-neutral-300"> {/* Changed bg-neutral-50 to bg-white and added border */}
         <h4 className="font-semibold mb-1 text-blue-600">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
         <div className="grid grid-cols-2 gap-x-2">
             <p>Total MB Amount: {formatCurrency(data.motherBillTotalAmount)}</p>
@@ -133,7 +133,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             </div>
           )}
            {(data.signatoryName || data.signatoryPosition) && (
-            <div className={(data.readingPerformerName || data.readingPerformerPosition) ? "" : "col-start-1"}>
+            <div className={(data.readingPerformerName || data.readingPerformerPosition) ? "" : "col-start-1"}> {/* Adjusted col-start for centering if only signatory is present */}
               <p className="mb-1 text-sm font-medium text-neutral-700">Prepared by:</p>
               <div className="mt-8 mb-1 border-b border-neutral-500 h-4"></div>
               <p className="mt-1 text-sm font-semibold text-neutral-800">{data.signatoryName || "___________________"}</p>
@@ -152,9 +152,10 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
   return (
     <div
       id="invoice-to-export"
-      className="max-w-[794px] mx-auto bg-background" // Use bg-background for overall container to match card, invoice content is bg-white
+      className="max-w-[794px] mx-auto bg-white" 
     >
       {renderInvoiceContent()}
     </div>
   );
 }
+
