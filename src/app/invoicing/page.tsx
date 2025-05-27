@@ -229,16 +229,16 @@ export default function InvoicingPage() {
 
     try {
       const canvas = await html2canvas(invoiceElement, { 
-        scale: 1, // Using scale 1 for direct pixel mapping if quality is acceptable
+        scale: 1, 
         useCORS: true,
-        width: 1122, 
-        windowWidth: 1122,
-        backgroundColor: '#ffffff' // Ensure a white background for the capture
+        // width: 794, // Removed to let html2canvas use element's natural width
+        // windowWidth: 794, // Removed
+        backgroundColor: '#ffffff'
       });
       const imgData = canvas.toDataURL('image/png');
       
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait', // Changed to portrait
         unit: 'pt',
         format: 'a4',
       });
@@ -249,7 +249,7 @@ export default function InvoicingPage() {
       const imgProps = pdf.getImageProperties(imgData);
       const aspectRatio = imgProps.width / imgProps.height;
       
-      const margin = 5; // Minimal margin to maximize content size
+      const margin = 10; // Adjusted margin for portrait
 
       let newImgWidth = pdfWidth - 2 * margin; 
       let newImgHeight = newImgWidth / aspectRatio;
