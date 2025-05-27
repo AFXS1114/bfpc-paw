@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Settings, Droplet, Zap, BarChart3, Users, ListTree, ReceiptText, FileText as InvoiceIcon } from "lucide-react";
+import { LayoutDashboard, Settings, Droplet, Zap, BarChart3, Users, ListTree, ReceiptText, FileText as InvoiceIcon, DatabaseZap } from "lucide-react";
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -26,12 +26,14 @@ const navItems = [
 
   // Water Management
   { href: "/mother-bill-water", label: "Mother Bill (Water)", icon: Droplet, section: "Water Management" }, 
-  { href: "/water", label: "Water", icon: Droplet, section: "Water Management" }, 
+  { href: "/water", label: "Water Entry", icon: Droplet, section: "Water Management" }, // Assuming /water is for individual water entry
+  // { href: "/water-readings", label: "Water Readings", icon: ListTree, section: "Water Management" }, // Placeholder if you add water readings list
   { type: "separator", section: "Water Management_End"},
   
   // Client & Financials
   { href: "/clients", label: "Clients", icon: Users, section: "Client & Financials" },
   { href: "/invoicing", label: "Invoicing", icon: InvoiceIcon, section: "Client & Financials" },
+  { href: "/manage-records", label: "Manage Records", icon: DatabaseZap, section: "Client & Financials" },
   { href: "/billing", label: "Billing Summary", icon: BarChart3, section: "Client & Financials" }, 
   { type: "separator", section: "Client & Financials_End"},
 
@@ -73,3 +75,5 @@ export function MainNavigation() {
     </SidebarMenu>
   );
 }
+
+    
