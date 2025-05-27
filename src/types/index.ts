@@ -95,7 +95,7 @@ export interface MotherBillEntry {
   billingYear: number;
   pastReading: number;
   presentReading: number;
-  totalConsumption: number;
+  totalConsumption: number; // Renamed from totalKwh to be generic
   totalAmountBilled: number;
   notes?: string;
   createdAt: FieldValue | Timestamp;
@@ -138,6 +138,7 @@ export interface InvoiceData {
   // New fields for dedicated invoice
   invoiceNumber: string;
   invoiceDate: string; // Formatted date string
+  // dueDate?: string; // Removed
 
   // Company details
   companyName: string;
@@ -162,7 +163,7 @@ export interface AppUserEntry {
   name: string;
   role: AppUserRole;
   email: string;
-  passcode: string; // Stored as entered. Renewal logic is more complex and out of scope for this change.
+  passcode: string; 
   createdAt: FieldValue | Timestamp;
 }
 

@@ -42,7 +42,7 @@ const addUserFormSchema = z.object({
   name: z.string().min(1, "Name is required."),
   role: z.enum(APP_USER_ROLES, { required_error: "Role is required." }),
   email: z.string().email("Invalid email address.").min(1, "Email is required."),
-  passcode: z.string().min(6, "Passcode must be at least 6 characters long."),
+  // Passcode is removed from form schema as it will be auto-generated
 });
 
 type AddUserFormData = z.infer<typeof addUserFormSchema>;
@@ -50,6 +50,15 @@ type AddUserFormData = z.infer<typeof addUserFormSchema>;
 interface AddUserModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+}
+
+function generatePasscode(length: number = 6): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
 }
 
 export function AddUserModal({ isOpen, onOpenChange }: AddUserModalProps) {
@@ -62,18 +71,18 @@ export function AddUserModal({ isOpen, onOpenChange }: AddUserModalProps) {
       name: "",
       // role: undefined, // Let placeholder handle it
       email: "",
-      passcode: "",
     },
   });
 
   async function onSubmit(data: AddUserFormData) {
     setIsSubmitting(true);
+    const generatedPasscode = generatePasscode(6);
     try {
       const appUserData: Omit<AppUserEntry, "id" | "createdAt"> & { createdAt: any } = {
         name: data.name,
         role: data.role,
         email: data.email,
-        passcode: data.passcode, // In a real app, this should be hashed securely on the server.
+        passcode: generatedPasscode,
         createdAt: serverTimestamp(),
       };
 
@@ -81,7 +90,8 @@ export function AddUserModal({ isOpen, onOpenChange }: AddUserModalProps) {
 
       toast({
         title: "App User Added",
-        description: `User ${data.name} has been added successfully.`,
+        description: `User ${data.name} has been added. Generated Passcode: ${generatedPasscode}`,
+        duration: 9000, // Allow more time to copy the passcode
       });
       form.reset();
       onOpenChange(false);
@@ -103,7 +113,7 @@ export function AddUserModal({ isOpen, onOpenChange }: AddUserModalProps) {
         <DialogHeader>
           <DialogTitle>Add New App User</DialogTitle>
           <DialogDescription>
-            Enter the details for the new application user. Click save when you're done.
+            Enter the details for the new application user. A 6-character alphanumeric passcode will be auto-generated. Click save when you're done.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -158,22 +168,12 @@ export function AddUserModal({ isOpen, onOpenChange }: AddUserModalProps) {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="passcode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Passcode</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="Min. 6 characters" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                   <p className="text-xs text-muted-foreground pt-1">
-                    Note: Passcode renewal logic upon logout is not yet implemented.
-                  </p>
-                </FormItem>
-              )}
-            />
+             <div className="text-sm text-muted-foreground pt-1">
+              <p>A 6-character alphanumeric passcode will be automatically generated and displayed upon successful submission.</p>
+              <p className="text-xs mt-1">
+                Note: Passcode renewal logic upon logout is not yet implemented.
+              </p>
+            </div>
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button" variant="outline">
