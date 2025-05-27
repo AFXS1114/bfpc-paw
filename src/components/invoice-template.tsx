@@ -22,8 +22,8 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
   const companyLogoPath = data.companyLogoUrl || "/company-logo.png";
 
   const renderInvoiceContent = (copyIdentifier?: string) => (
-    <div className="p-6 bg-white text-neutral-900 font-sans text-sm max-w-[550px] w-full border border-neutral-300 rounded-lg shadow-lg break-inside-avoid flex-shrink-0 flex flex-col">
-      <header className="flex justify-between items-start pb-4 border-b border-neutral-300 mb-4">
+    <div className="p-4 bg-white text-neutral-900 font-sans text-sm max-w-[550px] w-full border border-neutral-300 rounded-lg shadow-lg break-inside-avoid flex-shrink-0 flex flex-col">
+      <header className="flex justify-between items-start pb-3 border-b border-neutral-300 mb-3">
         <div>
           <Image
             src={companyLogoPath}
@@ -49,7 +49,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </header>
 
-      <section className="mb-6 grid grid-cols-2 gap-2">
+      <section className="mb-4 grid grid-cols-2 gap-2">
         <div>
           <h3 className="font-semibold text-blue-700 mb-1 text-sm">Bill To:</h3>
           <p className="font-medium text-neutral-800 text-xs">{data.clientName}</p>
@@ -61,7 +61,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </section>
 
-      <section className="mb-6">
+      <section className="mb-4">
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-neutral-100 text-left text-neutral-800">
@@ -86,7 +86,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </table>
       </section>
 
-      <section className="mb-6 p-2 bg-neutral-50 rounded-md text-[10px] text-neutral-700">
+      <section className="mb-4 p-2 bg-neutral-50 rounded-md text-[10px] text-neutral-700">
         <h4 className="font-semibold mb-0.5 text-blue-600">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
         <div className="grid grid-cols-2 gap-x-2">
             <p>Total MB Amount: {formatCurrency(data.motherBillTotalAmount)}</p>
@@ -94,7 +94,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </section>
 
-      <section className="flex justify-end mb-6 text-neutral-800 text-xs">
+      <section className="flex justify-end mb-4 text-neutral-800 text-xs">
         <div className="w-full md:w-2/3 space-y-0.5">
           <div className="flex justify-between">
             <span>Subtotal:</span>
@@ -112,16 +112,16 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </section>
 
-      <div className="flex-grow"></div>
+      <div className="flex-grow"></div> {/* Pushes content below to the bottom */}
 
       {data.paymentInstructions && (
-        <footer className="pt-4 border-t border-neutral-300 text-neutral-700 mt-auto">
+        <footer className="pt-3 border-t border-neutral-300 text-neutral-700 mt-auto">
           <h3 className="font-semibold text-blue-700 mb-1 text-sm">Payment Instructions:</h3>
           <p className="text-[10px] whitespace-pre-line">{data.paymentInstructions}</p>
         </footer>
       )}
 
-      <div className="mt-8 pt-4 border-t border-neutral-300 text-xs">
+      <div className="mt-6 pt-3 border-t border-neutral-300 text-xs">
         <div className="grid grid-cols-2 gap-4">
           {(data.readingPerformerName || data.readingPerformerPosition) && (
             <div>
@@ -132,7 +132,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             </div>
           )}
            {(data.signatoryName || data.signatoryPosition) && (
-            <div className={(data.readingPerformerName || data.readingPerformerPosition) ? "" : "col-start-1"}>
+            <div className={(data.readingPerformerName || data.readingPerformerPosition) ? "" : "col-start-1"}> {/* Adjust col-start if performer is not present */}
               <p className="mb-0.5 text-[10px] font-medium text-neutral-700">Prepared by:</p>
               <div className="mt-6 mb-0.5 border-b border-neutral-500 h-3"></div>
               <p className="mt-0.5 text-[10px] font-semibold text-neutral-800">{data.signatoryName || "___________________"}</p>
@@ -142,7 +142,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </div>
 
-       <div className="mt-6 text-center text-[10px] text-neutral-500">
+       <div className="mt-4 text-center text-[10px] text-neutral-500">
         <p>Thank you for your business!</p>
       </div>
     </div>
@@ -152,10 +152,10 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
     <div 
       id="invoice-to-export" 
       className="max-w-[1122px] mx-auto flex flex-row justify-center items-start gap-4 bg-white"
-    > {/* Changed bg to white, removed py-4 px-2, increased gap slightly */}
+    >
       {renderInvoiceContent("Client's Copy")}
       
-      <div className="flex flex-col items-center self-stretch justify-center min-h-full py-8 mx-1"> {/* Added py-8 for cut line height */}
+      <div className="flex flex-col items-center self-stretch justify-center min-h-full py-8 mx-1">
         <div className="w-px border-l-2 border-dashed border-neutral-400 flex-grow"></div>
         <span 
             className="my-2 text-neutral-500 font-mono text-xs" 
