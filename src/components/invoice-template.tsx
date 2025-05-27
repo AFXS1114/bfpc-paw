@@ -20,21 +20,22 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
     });
   };
 
+  const companyLogoPath = "/company-logo.png"; // Assumes logo is named company-logo.png in the public folder
+
   return (
     <div id="invoice-to-export" className="p-8 bg-background text-foreground font-sans text-sm max-w-4xl mx-auto border rounded-lg shadow-lg">
       {/* Header */}
       <header className="flex justify-between items-start pb-6 border-b mb-6">
         <div>
-          {data.companyLogoUrl && (
-            <Image 
-              src={data.companyLogoUrl} 
-              alt={`${data.companyName} Logo`} 
-              width={120} 
-              height={60} 
-              className="mb-2"
-              data-ai-hint="company logo"
-            />
-          )}
+          <Image 
+            src={companyLogoPath} 
+            alt={`${data.companyName || 'Company'} Logo`}
+            width={120} 
+            height={60} 
+            className="mb-2 object-contain" // Added object-contain
+            data-ai-hint="company logo"
+            onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/120x60.png?text=No+Logo'; }} // Fallback
+          />
           <h1 className="text-2xl font-bold text-primary">{data.companyName}</h1>
           <p>{data.companyAddressLine1}</p>
           <p>{data.companyAddressLine2}</p>
