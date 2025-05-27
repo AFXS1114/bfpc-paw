@@ -29,7 +29,20 @@ import { format } from "date-fns";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 
-pdfMake.vfs = pdfFonts.pdfMake.vfs;
+// Attempting to fix VFS loading
+// The error ".default.pdfMake is undefined" suggests pdfFonts.default exists,
+// but doesn't have a .pdfMake property. Let's try if .vfs is directly on .default
+if ((pdfFonts as any).default && (pdfFonts as any).default.vfs) {
+  pdfMake.vfs = (pdfFonts as any).default.vfs;
+} else if ((pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
+  // Fallback to the most common assignment if the above isn't true
+  pdfMake.vfs = (pdfFonts as any).pdfMake.vfs;
+} else {
+  // If neither typical structure is found, log an error.
+  // This might indicate an issue with the vfs_fonts.js file itself or its import.
+  console.error("Failed to load pdfMake VFS fonts. pdfFonts structure:", pdfFonts);
+}
+
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -225,16 +238,13 @@ export default function InvoicingPage() {
     setIsExportingPdf(true);
 
     const formatCurrency = (amount: number) => {
-        // pdfmake doesn't directly support toLocaleString with currency symbols well in all contexts.
-        // It's better to format it as a string P xxx.xx
         return `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
     
-    const data = invoiceData; // Alias for convenience
+    const data = invoiceData; 
 
     const documentDefinition: any = {
       content: [
-        // Section 1: Header
         {
           columns: [
             [
@@ -251,9 +261,6 @@ export default function InvoicingPage() {
           columnGap: 10,
         },
         { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1, lineColor: '#cccccc' }], margin: [0, 5, 0, 10] },
-
-
-        // Section 2: Bill To, Billing Period
         {
           columns: [
             [
@@ -269,8 +276,6 @@ export default function InvoicingPage() {
           columnGap: 10,
           margin: [0, 0, 0, 10]
         },
-
-        // Section 3: Items Table
         {
           style: 'itemsTable',
           table: {
@@ -305,8 +310,6 @@ export default function InvoicingPage() {
              paddingBottom: function(i: number, node: any) { return 2; }
           }
         },
-        
-        // Section 4: Rate Calculation Basis
         {
           margin: [0, 5, 0, 5],
           table: {
@@ -319,22 +322,19 @@ export default function InvoicingPage() {
                         { text: `${data.billingMonth} ${data.billingYear}):`, style: 'smallHeader', bold: true },
                         { text: ` Total MB Amount: ${formatCurrency(data.motherBillTotalAmount)} \t | \t Total MB Cons: ${data.motherBillTotalConsumption.toLocaleString()} kWh`, style: 'small' }
                       ],
-                      fillColor: '#F5F5F5', // Light grey background for this section
-                      border: [true, true, true, true], // Add borders around this section
+                      fillColor: '#F5F5F5', 
+                      border: [true, true, true, true], 
                       borderColor: ['#E0E0E0', '#E0E0E0', '#E0E0E0', '#E0E0E0'],
                       margin: [0, 2]
                     }
                 ]
             ]
           },
-           layout: 'noBorders' // no borders for the outer table, only for the cell content
+           layout: 'noBorders'
         },
-
-
-        // Section 5: Summary
         {
           columns: [
-            { width: '*', text: '' }, // Spacer
+            { width: '*', text: '' }, 
             {
               width: 'auto',
               style: 'summaryTable',
@@ -351,26 +351,19 @@ export default function InvoicingPage() {
           ],
           margin: [0, 5, 0, 10]
         },
-        
-        // Spacer to push content towards bottom - this is a common pdfmake pattern
         { text: '', RFS_spacer: true, margin: [0,0,0,0]},
-
-
-        // Section 6: Payment Instructions
         data.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 10, 0, 2] } : {text:''},
         data.paymentInstructions ? { text: data.paymentInstructions, style: 'default', margin: [0, 0, 0, 20] } : {text:''},
-
-        // Section 7: Signatories
         {
           columns: [
             (data.readingPerformerName || data.readingPerformerPosition) ? [
-              { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 25] }, // Increased bottom margin for signature space
+              { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 25] }, 
               { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,2]},
               { text: data.readingPerformerName || '', style: 'default', bold: true },
               { text: data.readingPerformerPosition || '', style: 'small' },
             ] : { text: '' },
             (data.signatoryName || data.signatoryPosition) ? [
-              { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 25] }, // Increased bottom margin for signature space
+              { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 25] }, 
               { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,2]},
               { text: data.signatoryName || '', style: 'default', bold: true },
               { text: data.signatoryPosition || '', style: 'small' },
@@ -378,54 +371,45 @@ export default function InvoicingPage() {
           ],
           columnGap: 20,
         },
-        
-        { text: 'Thank you for your business!', style: 'small', alignment: 'center', margin: [0, 20, 0, 0] } // Added top margin
+        { text: 'Thank you for your business!', style: 'small', alignment: 'center', margin: [0, 20, 0, 0] } 
       ],
       defaultStyle: {
         fontSize: 9,
         lineHeight: 1.2,
-        font: "Roboto", // pdfmake's default font
+        font: "Roboto", 
       },
       styles: {
-        header: { fontSize: 14, bold: true, margin: [0, 0, 0, 2] },
-        address: { fontSize: 8, margin: [0,0,0,1]},
-        invoiceTitle: { fontSize: 20, bold: true, color: '#2563EB', margin: [0, 0, 0, 1] }, // Blue color
-        subheader: { fontSize: 10, bold: true, margin: [0, 3, 0, 1] },
+        header: { fontSize: 14, bold: true, margin: [0, 0, 0, 2], color: '#333333' }, // Darker header text
+        address: { fontSize: 8, margin: [0,0,0,1], color: '#4A4A4A'}, // Darker address text
+        invoiceTitle: { fontSize: 20, bold: true, color: '#1E40AF', margin: [0, 0, 0, 1] }, // Darker blue
+        subheader: { fontSize: 10, bold: true, margin: [0, 3, 0, 1], color: '#333333' },
         itemsTable: { margin: [0, 5, 0, 5], fontSize: 8.5 },
-        tableHeader: { bold: true, fontSize: 8.5, color: '#333333'},
+        tableHeader: { bold: true, fontSize: 8.5, color: '#1F2937'}, // Darker table header
         summaryTable: { margin: [0,0,0,5], fontSize: 9},
-        totalAmountKey: {fontSize: 10, bold:true, color: '#2563EB'},
-        totalAmountValue: {fontSize: 10, bold:true, color: '#2563EB'},
-        smallHeader: { fontSize: 8, color: '#555555'},
-        small: { fontSize: 8, color: '#555555'},
-        default: {fontSize: 9}
+        totalAmountKey: {fontSize: 10, bold:true, color: '#1E40AF'}, // Darker blue
+        totalAmountValue: {fontSize: 10, bold:true, color: '#1E40AF'}, // Darker blue
+        smallHeader: { fontSize: 8, color: '#4A4A4A'},
+        small: { fontSize: 8, color: '#4A4A4A'},
+        default: {fontSize: 9, color: '#333333'} // Default text darker
       },
       pageSize: 'A4',
-      pageMargins: [40, 40, 40, 40], // [left, top, right, bottom]
+      pageMargins: [40, 40, 40, 40], 
       footer: function(currentPage: number, pageCount: number) { 
         return { 
           text: `Page ${currentPage.toString()} of ${pageCount.toString()}`, 
           alignment: 'center',
           style: 'small',
-          margin: [0,0,0,20] // margin for footer from bottom
+          margin: [0,0,0,20] 
         }; 
       }
     };
 
-    // Dynamic spacer logic
-    // This is a simplified approach. For pixel-perfect bottom alignment, a more complex calculation or pdfmake's footer callback is better.
-    let contentHeight = 0; // Placeholder for actual content height calculation if needed
-    // Simple fixed spacer for now, as calculating dynamic height is complex without rendering first.
-    // This attempts to push the signatories down, but might not be perfect for all content lengths.
     const spacerIndex = documentDefinition.content.findIndex((item: any) => item.RFS_spacer);
     if(spacerIndex !== -1) {
-        // Adjust margin for the spacer based on estimated content
-        // This is a very rough estimate.
-        const estimatedLines = JSON.stringify(data).length / 100; // very rough
-        const dynamicMargin = Math.max(0, 300 - (estimatedLines * 10)); // Adjust 300 and 10 as needed
+        const estimatedLines = JSON.stringify(data).length / 100; 
+        const dynamicMargin = Math.max(0, 300 - (estimatedLines * 10)); 
         (documentDefinition.content[spacerIndex] as any).margin[3] = dynamicMargin;
     }
-
 
     try {
       pdfMake.createPdf(documentDefinition).download(`Invoice-${invoiceData.invoiceNumber}.pdf`);
@@ -542,7 +526,7 @@ export default function InvoicingPage() {
                 Export to PDF
               </Button>
             </CardHeader>
-            <CardContent className="p-4 bg-muted/30 overflow-x-auto">
+            <CardContent className="p-2 bg-muted/30 overflow-x-auto">
                 <p className="text-sm text-muted-foreground">
                     The detailed HTML preview has been removed. Click "Export to PDF" to generate the document using pdfmake.
                 </p>
@@ -560,3 +544,6 @@ export default function InvoicingPage() {
     </main>
   );
 }
+
+
+    
