@@ -22,8 +22,8 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
 
   const companyLogoPath = "/company-logo.png"; // Assumes logo is named company-logo.png in the public folder
 
-  return (
-    <div id="invoice-to-export" className="p-8 bg-white text-neutral-900 font-sans text-sm max-w-4xl mx-auto border rounded-lg shadow-lg">
+  const renderInvoiceContent = (copyIdentifier?: string) => (
+    <div className="p-8 bg-white text-neutral-900 font-sans text-sm max-w-4xl mx-auto border rounded-lg shadow-lg mb-6 break-inside-avoid">
       {/* Header */}
       <header className="flex justify-between items-start pb-6 border-b border-neutral-300 mb-6">
         <div>
@@ -32,23 +32,22 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             alt={`${data.companyName || 'Company'} Logo`}
             width={120} 
             height={60} 
-            className="mb-2 object-contain" // Added object-contain
+            className="mb-2 object-contain"
             data-ai-hint="company logo"
-            onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/120x60.png?text=No+Logo'; }} // Fallback
+            onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/120x60.png?text=No+Logo'; }}
           />
           <h1 className="text-2xl font-bold text-primary">{data.companyName}</h1>
           <p>{data.companyAddressLine1}</p>
           {data.companyAddressLine2 && <p>{data.companyAddressLine2}</p>}
         </div>
         <div className="text-right">
-          <h2 className="text-3xl font-semibold text-primary/90 mb-1">INVOICE</h2>
+          <h2 className="text-3xl font-semibold text-primary/90 mb-1">INVOICE {copyIdentifier && <span className="text-xs block normal-case">({copyIdentifier})</span>}</h2>
           <p className="text-base">
             <span className="font-medium">Invoice #:</span> {data.invoiceNumber}
           </p>
           <p>
             <span className="font-medium">Date:</span> {data.invoiceDate}
           </p>
-          {/* Due Date Removed */}
         </div>
       </header>
 
@@ -69,7 +68,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
       <section className="mb-8">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-neutral-100 text-left"> {/* Changed bg-muted/50 to bg-neutral-100 for light theme */}
+            <tr className="bg-neutral-100 text-left">
               <th className="p-2 border border-neutral-300 font-medium">Description</th>
               <th className="p-2 border border-neutral-300 font-medium text-right">Previous Reading (kWh)</th>
               <th className="p-2 border border-neutral-300 font-medium text-right">Present Reading (kWh)</th>
@@ -91,8 +90,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </table>
       </section>
       
-      {/* Mother Bill Reference (Optional for display, good for transparency) */}
-      <section className="mb-8 p-3 bg-neutral-50 rounded-md text-xs"> {/* Changed bg-muted/30 for light theme */}
+      <section className="mb-8 p-3 bg-neutral-50 rounded-md text-xs">
         <h4 className="font-semibold mb-1 text-primary/80">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
         <div className="grid grid-cols-2 gap-x-4">
             <p>Total Mother Bill Amount: {formatCurrency(data.motherBillTotalAmount)}</p>
@@ -100,8 +98,6 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </section>
 
-
-      {/* Summary */}
       <section className="flex justify-end mb-8">
         <div className="w-full md:w-1/2 lg:w-1/3 space-y-1">
           <div className="flex justify-between">
@@ -112,7 +108,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             <span>VAT (12%):</span>
             <span>{formatCurrency(data.vatAmount)}</span>
           </div>
-          <hr className="my-1 border-neutral-300"/> {/* Changed border-border */}
+          <hr className="my-1 border-neutral-300"/>
           <div className="flex justify-between font-bold text-lg text-primary">
             <span>Total Amount Due:</span>
             <span>{formatCurrency(data.totalAmountDue)}</span>
@@ -120,16 +116,25 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </section>
 
-      {/* Footer / Payment Instructions */}
       {data.paymentInstructions && (
-        <footer className="pt-6 border-t border-neutral-300"> {/* Changed border-border */}
+        <footer className="pt-6 border-t border-neutral-300">
           <h3 className="font-semibold text-primary mb-1">Payment Instructions:</h3>
           <p className="text-sm whitespace-pre-line">{data.paymentInstructions}</p>
         </footer>
       )}
-       <div className="mt-8 text-center text-xs text-neutral-500"> {/* Changed text-muted-foreground */}
+       <div className="mt-8 text-center text-xs text-neutral-500">
         <p>Thank you for your business!</p>
       </div>
+    </div>
+  );
+
+  return (
+    <div id="invoice-to-export">
+      {renderInvoiceContent("Client's Copy")}
+      <div className="my-4 py-2 text-center border-t-2 border-b-2 border-dashed border-neutral-400 text-neutral-500 font-mono text-sm">
+        ----------- Cut Here -----------
+      </div>
+      {renderInvoiceContent("Office Copy")}
     </div>
   );
 }
