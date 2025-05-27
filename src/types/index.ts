@@ -1,3 +1,4 @@
+
 // This file can be used to define shared TypeScript types across the application.
 import type { Timestamp, FieldValue } from "firebase/firestore";
 
@@ -137,12 +138,14 @@ export interface InvoiceData {
   // New fields for dedicated invoice
   invoiceNumber: string;
   invoiceDate: string; // Formatted date string
-  dueDate?: string; // Formatted date string e.g. "Due upon receipt" or a specific date
+  dueDate?: string; // Formatted date string - now optional
   
-  // Company details (placeholders - can be configured later if needed)
+  // Company details
   companyName: string; 
   companyAddressLine1: string;
-  companyAddressLine2: string;
+  companyAddressLine2?: string; // Made optional
   companyLogoUrl?: string; // URL to a company logo
   paymentInstructions?: string;
 }
+
+    

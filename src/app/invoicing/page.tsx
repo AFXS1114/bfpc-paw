@@ -26,7 +26,7 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp } from "firebase/firestore";
 import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData } from "@/types";
 import { FileText, Search, Loader2, Download } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import { InvoiceTemplate } from "@/components/invoice-template";
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -160,12 +160,11 @@ export default function InvoicingPage() {
         totalAmountDue: totalAmountDue,
         invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-${selectedBillingYear}${MONTHS.indexOf(selectedBillingMonth).toString().padStart(2, '0')}`,
         invoiceDate: format(currentDate, "MMMM dd, yyyy"),
-        dueDate: format(addDays(currentDate, 15), "MMMM dd, yyyy"), // Example: Due in 15 days
-        companyName: "BFPC Commercial Complex", // Placeholder
-        companyAddressLine1: "123 Market Street", // Placeholder
-        companyAddressLine2: "Cityville, ST 12345", // Placeholder
-        companyLogoUrl: "https://placehold.co/200x100.png?text=Company+Logo", // Placeholder logo
-        paymentInstructions: "Please make all checks payable to BFPC Commercial Complex.\nPayment can be made at the administration office." // Placeholder
+        companyName: "BULAN FISH PORT COMPLEX",
+        companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
+        companyAddressLine2: "", // Address line 2 is now empty
+        companyLogoUrl: "/company-logo.png", 
+        paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office."
       };
       setInvoiceData(generatedInvoiceData);
 
@@ -347,3 +346,5 @@ export default function InvoicingPage() {
     </main>
   );
 }
+
+    

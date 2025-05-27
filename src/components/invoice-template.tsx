@@ -38,7 +38,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
           />
           <h1 className="text-2xl font-bold text-primary">{data.companyName}</h1>
           <p>{data.companyAddressLine1}</p>
-          <p>{data.companyAddressLine2}</p>
+          {data.companyAddressLine2 && <p>{data.companyAddressLine2}</p>}
         </div>
         <div className="text-right">
           <h2 className="text-3xl font-semibold text-primary/90 mb-1">INVOICE</h2>
@@ -48,11 +48,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
           <p>
             <span className="font-medium">Date:</span> {data.invoiceDate}
           </p>
-          {data.dueDate && (
-            <p>
-              <span className="font-medium">Due Date:</span> {data.dueDate}
-            </p>
-          )}
+          {/* Due Date Removed */}
         </div>
       </header>
 
@@ -137,3 +133,5 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
     </div>
   );
 }
+
+    
