@@ -37,15 +37,15 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/120x60.png?text=No+Logo'; }}
           />
           <h1 className="text-2xl font-bold text-blue-700">{data.companyName}</h1>
-          <p>{data.companyAddressLine1}</p>
-          {data.companyAddressLine2 && <p>{data.companyAddressLine2}</p>}
+          <p className="text-neutral-700">{data.companyAddressLine1}</p>
+          {data.companyAddressLine2 && <p className="text-neutral-700">{data.companyAddressLine2}</p>}
         </div>
         <div className="text-right">
           <h2 className="text-3xl font-semibold text-blue-600 mb-1">INVOICE {copyIdentifier && <span className="text-xs block normal-case">({copyIdentifier})</span>}</h2>
-          <p className="text-base">
+          <p className="text-base text-neutral-800">
             <span className="font-medium">Invoice #:</span> {data.invoiceNumber}
           </p>
-          <p>
+          <p className="text-neutral-800">
             <span className="font-medium">Date:</span> {data.invoiceDate}
           </p>
         </div>
@@ -55,12 +55,12 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
       <section className="mb-8 grid grid-cols-2 gap-4">
         <div>
           <h3 className="font-semibold text-blue-700 mb-1">Bill To:</h3>
-          <p className="font-medium">{data.clientName}</p>
-          <p>Stall No: {data.stallNo}</p>
+          <p className="font-medium text-neutral-800">{data.clientName}</p>
+          <p className="text-neutral-700">Stall No: {data.stallNo}</p>
         </div>
         <div className="text-right">
            <h3 className="font-semibold text-blue-700 mb-1">Billing Period:</h3>
-           <p>{data.billingMonth} {data.billingYear}</p>
+           <p className="text-neutral-700">{data.billingMonth} {data.billingYear}</p>
         </div>
       </section>
 
@@ -152,7 +152,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
   );
 
   return (
-    <div id="invoice-to-export">
+    <div id="invoice-to-export" className="max-w-[794px] mx-auto">
       {renderInvoiceContent("Client's Copy")}
       <div className="my-4 py-2 text-center border-t-2 border-b-2 border-dashed border-neutral-400 text-neutral-500 font-mono text-sm">
         ----------- Cut Here -----------
