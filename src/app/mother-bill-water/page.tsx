@@ -280,7 +280,7 @@ export default function WaterMotherBillPage() {
                   control={form.control}
                   name="totalAmountBilled"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="max-w-md">
                       <FormLabel>Total Amount Billed (₱)</FormLabel>
                       <FormControl>
                         <Input type="number" step="0.01" placeholder="e.g., 50.25" {...field} />
@@ -294,7 +294,7 @@ export default function WaterMotherBillPage() {
                   control={form.control}
                   name="notes"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="max-w-lg">
                       <FormLabel>Notes (Optional)</FormLabel>
                       <FormControl>
                         <Textarea placeholder={`Any relevant notes about this ${UTILITY_TYPE} mother bill...`} {...field} />

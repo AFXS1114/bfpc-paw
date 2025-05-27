@@ -365,7 +365,7 @@ export default function PowerPage() {
                   control={form.control}
                   name="notes"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="max-w-lg">
                       <FormLabel>Notes (Optional)</FormLabel>
                       <FormControl>
                         <Textarea placeholder="Any relevant notes about this reading..." {...field} />

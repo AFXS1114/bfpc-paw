@@ -169,7 +169,7 @@ export default function ClientsPage() {
                   control={form.control}
                   name="businessName"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="max-w-md">
                       <FormLabel>Business Name</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g., John's Groceries" {...field} />

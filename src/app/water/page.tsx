@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PageHeader } from "@/components/page-header";
@@ -6,10 +7,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"; // Assuming you might use these later
 import { PlusCircle } from "lucide-react";
 import Image from 'next/image';
 
 export default function WaterPage() {
+  // Placeholder for form state and submission logic if you expand this page
+  // For now, it's mostly static UI as per the original structure
+
   return (
     <main className="flex flex-1 flex-col">
       <PageHeader title="Water Management" />
@@ -19,24 +31,33 @@ export default function WaterPage() {
             <CardTitle>Record New Water Reading</CardTitle>
             <CardDescription>Enter the details from your water meter.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="reading-date">Reading Date</Label>
-                <Input id="reading-date" type="date" className="mt-1" />
+          <CardContent>
+            {/* 
+              If this becomes a proper form, wrap with <Form {...form}> and <form onSubmit={...}>
+              and use <FormField> for each input.
+            */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormItem>
+                  <FormLabel htmlFor="reading-date">Reading Date</FormLabel>
+                  <Input id="reading-date" type="date" className="mt-1" />
+                  {/* <FormMessage /> would go here if using FormField */}
+                </FormItem>
+                <FormItem>
+                  <FormLabel htmlFor="reading-value">Meter Reading (m³)</FormLabel>
+                  <Input id="reading-value" type="number" placeholder="e.g., 123.45" className="mt-1" />
+                  {/* <FormMessage /> */}
+                </FormItem>
               </div>
-              <div>
-                <Label htmlFor="reading-value">Meter Reading (m³)</Label>
-                <Input id="reading-value" type="number" placeholder="e.g., 123.45" className="mt-1" />
-              </div>
+              <FormItem className="max-w-lg">
+                <FormLabel htmlFor="notes">Notes (Optional)</FormLabel>
+                <Textarea id="notes" placeholder="Any relevant notes about this reading..." className="mt-1" />
+                {/* <FormMessage /> */}
+              </FormItem>
+              <Button className="w-full md:w-auto">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Reading
+              </Button>
             </div>
-            <div>
-              <Label htmlFor="notes">Notes (Optional)</Label>
-              <Textarea id="notes" placeholder="Any relevant notes about this reading..." className="mt-1" />
-            </div>
-            <Button className="w-full md:w-auto">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Reading
-            </Button>
           </CardContent>
         </Card>
 

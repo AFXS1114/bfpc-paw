@@ -185,7 +185,6 @@ export default function PowerReadingsPage() {
       const vatAmount = amountBeforeVAT * 0.12;
       const totalAmountDue = amountBeforeVAT + vatAmount;
 
-      // Construct invoice data
       const currentDate = new Date();
       setInvoiceData({
         clientName: reading.clientName,
@@ -201,14 +200,14 @@ export default function PowerReadingsPage() {
         amountBeforeVAT: amountBeforeVAT,
         vatAmount: vatAmount,
         totalAmountDue: totalAmountDue,
-        // Fields required by the full InvoiceData type for the dedicated invoice page,
-        // some can be placeholders or simplified for this modal.
         invoiceNumber: `${reading.stallNo.replace(/[^A-Z0-9]/ig, '')}-${reading.billingYear}${MONTHS.indexOf(reading.billingMonth).toString().padStart(2, '0')}-MODAL`,
         invoiceDate: format(currentDate, "MMMM dd, yyyy"),
-        dueDate: format(currentDate, "MMMM dd, yyyy"), // Example: Due today for modal
-        companyName: "BFPC Commercial Complex", 
-        companyAddressLine1: "123 Market Street", 
-        companyAddressLine2: "Cityville, ST 12345",
+        // dueDate: format(currentDate, "MMMM dd, yyyy"), // Example: Due today for modal. // Removed as per user request
+        companyName: "BULAN FISH PORT COMPLEX", 
+        companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
+        companyAddressLine2: "",
+        paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office."
+        // companyLogoUrl can be added if needed for modal
       });
       setIsInvoiceModalOpen(true);
 
@@ -263,14 +262,14 @@ export default function PowerReadingsPage() {
                 <Label htmlFor="filter-client">Client Name</Label>
                 <Select
                   value={filterClientId || ALL_CLIENTS_SELECT_ITEM_VALUE}
-                  onValueChange={setFilterClientId}
+                  onValueChange={val => setFilterClientId(val === ALL_CLIENTS_SELECT_ITEM_VALUE ? "" : val)}
                   disabled={isLoadingClients}
                 >
                   <SelectTrigger id="filter-client" className="mt-1">
                     <SelectValue placeholder={isLoadingClients ? "Loading..." : "All Clients"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ALL_CLIENTS_SELECT_ITEM_VALUE}>All Clients</SelectItem>
+                    <SelectItem key={ALL_CLIENTS_SELECT_ITEM_VALUE} value={ALL_CLIENTS_SELECT_ITEM_VALUE}>All Clients</SelectItem>
                     {clients.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.clientName} ({client.stallNo})
@@ -308,13 +307,13 @@ export default function PowerReadingsPage() {
                 <Label htmlFor="filter-billing-month">Billing Month</Label>
                 <Select 
                   value={filterBillingMonth || ANY_MONTH_SELECT_ITEM_VALUE}
-                  onValueChange={setFilterBillingMonth}
+                  onValueChange={val => setFilterBillingMonth(val === ANY_MONTH_SELECT_ITEM_VALUE ? "" : val)}
                 >
                   <SelectTrigger id="filter-billing-month" className="mt-1">
                     <SelectValue placeholder="Any Month" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ANY_MONTH_SELECT_ITEM_VALUE}>Any Month</SelectItem>
+                    <SelectItem key={ANY_MONTH_SELECT_ITEM_VALUE} value={ANY_MONTH_SELECT_ITEM_VALUE}>Any Month</SelectItem>
                     {MONTHS.map((month) => (
                       <SelectItem key={month} value={month}>{month}</SelectItem>
                     ))}
@@ -325,15 +324,15 @@ export default function PowerReadingsPage() {
                 <Label htmlFor="filter-billing-year">Billing Year</Label>
                  <Select 
                     value={filterBillingYear || ANY_YEAR_SELECT_ITEM_VALUE} 
-                    onValueChange={setFilterBillingYear}
+                    onValueChange={val => setFilterBillingYear(val === ANY_YEAR_SELECT_ITEM_VALUE ? "" : val)}
                   >
                   <SelectTrigger id="filter-billing-year" className="mt-1">
                     <SelectValue placeholder="Any Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ANY_YEAR_SELECT_ITEM_VALUE}>Any Year</SelectItem>
+                    <SelectItem key={ANY_YEAR_SELECT_ITEM_VALUE} value={ANY_YEAR_SELECT_ITEM_VALUE}>Any Year</SelectItem>
                     {YEARS.map((year) => (
-                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                      <SelectItem key={year.toString()} value={year.toString()}>{year}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -466,7 +465,6 @@ export default function PowerReadingsPage() {
             </div>
             <DialogFooter>
               <Button onClick={() => setIsInvoiceModalOpen(false)}>Close</Button>
-              {/* PDF Export button can be added here later */}
             </DialogFooter>
           </DialogContent>
         </Dialog>
