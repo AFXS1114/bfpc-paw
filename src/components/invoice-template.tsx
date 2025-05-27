@@ -23,7 +23,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
   const companyLogoPath = data.companyLogoUrl || "/company-logo.png"; 
 
   const renderInvoiceContent = (copyIdentifier?: string) => (
-    <div className="p-8 bg-white text-neutral-900 font-sans text-sm max-w-4xl mx-auto border border-neutral-300 rounded-lg shadow-lg mb-6 break-inside-avoid">
+    <div className="p-8 bg-white text-neutral-900 font-sans text-sm max-w-[794px] mx-auto border border-neutral-300 rounded-lg shadow-lg mb-6 break-inside-avoid">
       {/* Header */}
       <header className="flex justify-between items-start pb-6 border-b border-neutral-300 mb-6">
         <div>
@@ -36,7 +36,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             data-ai-hint="company logo"
             onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/120x60.png?text=No+Logo'; }}
           />
-          <h1 className="text-2xl font-bold text-blue-700">{data.companyName}</h1> {/* Adjusted color for visibility on white */}
+          <h1 className="text-2xl font-bold text-blue-700">{data.companyName}</h1>
           <p>{data.companyAddressLine1}</p>
           {data.companyAddressLine2 && <p>{data.companyAddressLine2}</p>}
         </div>
@@ -161,3 +161,4 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
     </div>
   );
 }
+
