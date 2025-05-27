@@ -30,16 +30,11 @@ import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 
 // Attempting to fix VFS loading
-// The error ".default.pdfMake is undefined" suggests pdfFonts.default exists,
-// but doesn't have a .pdfMake property. Let's try if .vfs is directly on .default
 if ((pdfFonts as any).default && (pdfFonts as any).default.vfs) {
   pdfMake.vfs = (pdfFonts as any).default.vfs;
 } else if ((pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
-  // Fallback to the most common assignment if the above isn't true
   pdfMake.vfs = (pdfFonts as any).pdfMake.vfs;
 } else {
-  // If neither typical structure is found, log an error.
-  // This might indicate an issue with the vfs_fonts.js file itself or its import.
   console.error("Failed to load pdfMake VFS fonts. pdfFonts structure:", pdfFonts);
 }
 
@@ -279,7 +274,7 @@ export default function InvoicingPage() {
         {
           style: 'itemsTable',
           table: {
-            widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
+            widths: ['*', 60, 60, 60, 70, 75], // Adjusted column widths
             body: [
               [
                 { text: 'Description', style: 'tableHeader' },
@@ -545,5 +540,7 @@ export default function InvoicingPage() {
   );
 }
 
+
+    
 
     
