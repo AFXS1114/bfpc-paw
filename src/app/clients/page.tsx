@@ -37,8 +37,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from "firebase/firestore";
-import { UserPlus, Building, ScanLine, Loader2, ListChecks } from "lucide-react";
+import { UserPlus, Building, ScanLine, Loader2, ListChecks, Edit } from "lucide-react"; // Added Edit icon
 import type { Client } from "@/types";
+import type { ClientDocument } from "@/types"; // Ensured ClientDocument is imported
+import { EditClientModal } from "@/components/edit-client-modal"; // Import the modal
 
 const clientFormSchema = z.object({
   stallNo: z.string().min(1, "Stall No. is required"),
@@ -50,16 +52,16 @@ const clientFormSchema = z.object({
 
 type ClientFormData = z.infer<typeof clientFormSchema>;
 
-interface ClientDocument extends Client {
-  id: string;
-  createdAt?: Timestamp; // Firestore Timestamp
-}
+// ClientDocument interface is already defined in types/index.ts
 
 export default function ClientsPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [clients, setClients] = useState<ClientDocument[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<ClientDocument | null>(null);
 
   const form = useForm<ClientFormData>({
     resolver: zodResolver(clientFormSchema),
@@ -102,7 +104,7 @@ export default function ClientsPage() {
       await addDoc(collection(db, "clients"), {
         ...data,
         createdAt: serverTimestamp(),
-      } as Client); // Type assertion for Client without id
+      } as Client); 
       toast({
         title: "Client Added Successfully",
         description: `Client ${data.clientName} has been added.`,
@@ -119,6 +121,11 @@ export default function ClientsPage() {
       setIsSubmitting(false);
     }
   }
+
+  const handleEditClick = (client: ClientDocument) => {
+    setEditingClient(client);
+    setIsEditModalOpen(true);
+  };
 
   return (
     <main className="flex flex-1 flex-col">
@@ -230,7 +237,7 @@ export default function ClientsPage() {
               Client Records
             </CardTitle>
             <CardDescription>
-              List of all registered clients.
+              List of all registered clients. Click edit to modify a client's details.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -251,6 +258,7 @@ export default function ClientsPage() {
                     <TableHead>Business Name</TableHead>
                     <TableHead>Water Meter No.</TableHead>
                     <TableHead>Power Meter No.</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -261,6 +269,15 @@ export default function ClientsPage() {
                       <TableCell>{client.businessName}</TableCell>
                       <TableCell>{client.waterMeterNo}</TableCell>
                       <TableCell>{client.powerMeterNo}</TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditClick(client)}
+                        >
+                          <Edit className="mr-1 h-3 w-3" /> Edit
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -269,6 +286,13 @@ export default function ClientsPage() {
           </CardContent>
         </Card>
       </div>
+      {editingClient && (
+        <EditClientModal
+          isOpen={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          client={editingClient}
+        />
+      )}
     </main>
   );
 }
