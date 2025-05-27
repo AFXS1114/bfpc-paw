@@ -29,7 +29,6 @@ import { format } from "date-fns";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 
-// Attempting to fix VFS loading
 if ((pdfFonts as any).default && (pdfFonts as any).default.vfs) {
   pdfMake.vfs = (pdfFonts as any).default.vfs;
 } else if ((pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
@@ -248,6 +247,7 @@ export default function InvoicingPage() {
     }
   };
 
+
   const handleExportToPdf = async () => {
     if (!invoiceData) {
       toast({ title: "No Invoice Data", description: "Generate invoice data first.", variant: "destructive" });
@@ -256,73 +256,68 @@ export default function InvoicingPage() {
     setIsExportingPdf(true);
 
     const logoDataUrl = await imageToDataUrl('/company-logo.png');
+    const data = invoiceData;
 
     const formatCurrency = (amount: number) => {
-        return `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
-    
-    const data = invoiceData; 
 
-    const headerContent: any[] = [];
-    if (logoDataUrl) {
-      headerContent.push({ image: logoDataUrl, width: 70, alignment: 'center', margin: [0, 0, 0, 5] });
-    }
-    headerContent.push({ text: data.companyName, style: 'header', alignment: 'center' });
-    headerContent.push({ text: data.companyAddressLine1, style: 'address', alignment: 'center' });
-    if (data.companyAddressLine2) {
-      headerContent.push({ text: data.companyAddressLine2, style: 'address', alignment: 'center'});
-    }
-    
+    const generateInvoiceContent = (invoiceCopyData: InvoiceData, copyTitle: string) => {
+      const companyHeaderInfo = [
+        ...(logoDataUrl ? [{ image: logoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const }] : []),
+        { text: invoiceCopyData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
+        { text: invoiceCopyData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const},
+        ...(invoiceCopyData.companyAddressLine2 ? [{ text: invoiceCopyData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const }] : []),
+      ];
 
-    const documentDefinition: any = {
-      content: [
+      return [
         {
           columns: [
-            [...headerContent], // Company info centered
-            [ // Invoice title and details on the right
-              { text: 'INVOICE', style: 'invoiceTitle', alignment: 'right' },
-              { text: `Invoice #: ${data.invoiceNumber}`, alignment: 'right', style: 'small' },
-              { text: `Date: ${data.invoiceDate}`, alignment: 'right', style: 'small' },
+            companyHeaderInfo,
+            [
+              { text: `INVOICE (${copyTitle})`, style: 'invoiceTitle', alignment: 'right' as const },
+              { text: `Invoice #: ${invoiceCopyData.invoiceNumber}`, alignment: 'right' as const, style: 'small' },
+              { text: `Date: ${invoiceCopyData.invoiceDate}`, alignment: 'right' as const, style: 'small' },
             ]
           ],
           columnGap: 10,
         },
-        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 0.5, lineColor: '#cccccc' }], margin: [0, 5, 0, 10] },
+        { canvas: [{ type: 'line' as const, x1: 0, y1: 3, x2: 515, y2: 3, lineWidth: 0.5, lineColor: '#cccccc' }], margin: [0, 3, 0, 5] as const },
         {
           columns: [
             [
               { text: 'Bill To:', style: 'subheader' },
-              { text: data.clientName, style: 'default' },
-              { text: `Stall No: ${data.stallNo}`, style: 'default' },
+              { text: invoiceCopyData.clientName, style: 'defaultCompact' },
+              { text: `Stall No: ${invoiceCopyData.stallNo}`, style: 'defaultCompact' },
             ],
             [
-              { text: 'Billing Period:', style: 'subheader', alignment: 'right' },
-              { text: `${data.billingMonth} ${data.billingYear}`, alignment: 'right', style: 'default' },
+              { text: 'Billing Period:', style: 'subheader', alignment: 'right' as const },
+              { text: `${invoiceCopyData.billingMonth} ${invoiceCopyData.billingYear}`, alignment: 'right' as const, style: 'defaultCompact' },
             ]
           ],
           columnGap: 10,
-          margin: [0, 0, 0, 10]
+          margin: [0, 0, 0, 5] as const,
         },
         {
           style: 'itemsTable',
           table: {
-            widths: ['*', 60, 60, 60, 70, 75], 
+            widths: ['*', 50, 50, 50, 60, 65], 
             body: [
               [
                 { text: 'Description', style: 'tableHeader' },
-                { text: 'Prev.\n(kWh)', style: 'tableHeader', alignment: 'right' },
-                { text: 'Pres.\n(kWh)', style: 'tableHeader', alignment: 'right' },
-                { text: 'Cons.\n(kWh)', style: 'tableHeader', alignment: 'right' },
-                { text: 'Rate\n(P/kWh)', style: 'tableHeader', alignment: 'right' },
-                { text: 'Amount\n(P)', style: 'tableHeader', alignment: 'right' },
+                { text: 'Prev.\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
+                { text: 'Pres.\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
+                { text: 'Cons.\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
+                { text: 'Rate\n(P/kWh)', style: 'tableHeader', alignment: 'right' as const },
+                { text: 'Amount\n(P)', style: 'tableHeader', alignment: 'right' as const },
               ],
               [
                 'Power Consumption',
-                { text: data.clientPreviousReading.toLocaleString(), alignment: 'right' },
-                { text: data.clientPresentReading.toLocaleString(), alignment: 'right' },
-                { text: data.clientTotalKwh.toLocaleString(), alignment: 'right', bold: true },
-                { text: `P${data.basicRate.toFixed(4)}`, alignment: 'right' },
-                { text: formatCurrency(data.clientTotalKwh * data.basicRate), alignment: 'right' },
+                { text: invoiceCopyData.clientPreviousReading.toLocaleString(), alignment: 'right' as const },
+                { text: invoiceCopyData.clientPresentReading.toLocaleString(), alignment: 'right' as const },
+                { text: invoiceCopyData.clientTotalKwh.toLocaleString(), alignment: 'right' as const, bold: true },
+                { text: `P${invoiceCopyData.basicRate.toFixed(4)}`, alignment: 'right' as const },
+                { text: formatCurrency(invoiceCopyData.clientTotalKwh * invoiceCopyData.basicRate), alignment: 'right' as const },
               ]
             ]
           },
@@ -331,28 +326,28 @@ export default function InvoicingPage() {
              vLineWidth: function (i: number, node: any) { return 0.5; },
              hLineColor: function (i: number, node: any) { return '#BFBFBF'; },
              vLineColor: function (i: number, node: any) { return '#BFBFBF'; },
-             paddingLeft: function(i: number, node: any) { return 4; },
-             paddingRight: function(i: number, node: any) { return 4; },
-             paddingTop: function(i: number, node: any) { return 2; },
-             paddingBottom: function(i: number, node: any) { return 2; }
+             paddingLeft: function(i: number, node: any) { return 3; },
+             paddingRight: function(i: number, node: any) { return 3; },
+             paddingTop: function(i: number, node: any) { return 1; },
+             paddingBottom: function(i: number, node: any) { return 1; }
           }
         },
         {
-          margin: [0, 5, 0, 5],
+          margin: [0, 2, 0, 2] as const,
           table: {
             widths: ['*'],
             body: [
                 [
                     {
                      text: [
-                        { text: 'Rate Calculation Basis (Mother Bill ', style: 'smallHeader' },
-                        { text: `${data.billingMonth} ${data.billingYear}):`, style: 'smallHeader', bold: true },
-                        { text: ` Total MB Amount: ${formatCurrency(data.motherBillTotalAmount)} \t | \t Total MB Cons: ${data.motherBillTotalConsumption.toLocaleString()} kWh`, style: 'small' }
+                        { text: 'Rate Basis (MB ', style: 'smallHeader' },
+                        { text: `${invoiceCopyData.billingMonth} ${invoiceCopyData.billingYear}):`, style: 'smallHeader', bold: true },
+                        { text: ` MB Amt: ${formatCurrency(invoiceCopyData.motherBillTotalAmount)} | MB Cons: ${invoiceCopyData.motherBillTotalConsumption.toLocaleString()} kWh`, style: 'small' }
                       ],
                       fillColor: '#F5F5F5', 
-                      border: [true, true, true, true], 
-                      borderColor: ['#E0E0E0', '#E0E0E0', '#E0E0E0', '#E0E0E0'],
-                      margin: [0, 2]
+                      border: [true, true, true, true] as const, 
+                      borderColor: ['#E0E0E0', '#E0E0E0', '#E0E0E0', '#E0E0E0'] as const,
+                      margin: [0, 1] as const,
                     }
                 ]
             ]
@@ -368,68 +363,78 @@ export default function InvoicingPage() {
               table: {
                 widths: ['auto', 'auto'],
                 body: [
-                  ['Subtotal:', { text: formatCurrency(data.amountBeforeVAT), alignment: 'right' }],
-                  ['VAT (12%):', { text: formatCurrency(data.vatAmount), alignment: 'right' }],
-                  [{ text: 'Total Amount Due:', bold: true, style:'totalAmountKey' }, { text: formatCurrency(data.totalAmountDue), alignment: 'right', bold: true, style:'totalAmountValue' }]
+                  ['Subtotal:', { text: formatCurrency(invoiceCopyData.amountBeforeVAT), alignment: 'right' as const }],
+                  ['VAT (12%):', { text: formatCurrency(invoiceCopyData.vatAmount), alignment: 'right' as const }],
+                  [{ text: 'Total Amount Due:', bold: true, style:'totalAmountKey' }, { text: formatCurrency(invoiceCopyData.totalAmountDue), alignment: 'right' as const, bold: true, style:'totalAmountValue' }]
                 ]
               },
               layout: 'noBorders'
             }
           ],
-          margin: [0, 5, 0, 10]
+          margin: [0, 2, 0, 5] as const
         },
-        { text: '', margin: [0,0,0,10]}, // Reduced spacer margin
-        data.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 5, 0, 2] } : {text:''}, // Reduced top margin
-        data.paymentInstructions ? { text: data.paymentInstructions, style: 'default', margin: [0, 0, 0, 10] } : {text:''}, // Reduced bottom margin
-        
-        // Signatures section with flexible space
+        { text: '', margin: [0,0,0,5] as const}, 
+        invoiceCopyData.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 2, 0, 1] as const } : {text:''}, 
+        invoiceCopyData.paymentInstructions ? { text: invoiceCopyData.paymentInstructions, style: 'defaultCompact', margin: [0, 0, 0, 5] as const } : {text:''}, 
         {
             columns: [
-                (data.readingPerformerName || data.readingPerformerPosition) ? [
-                    { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 20] }, // Reduced bottom margin for signature line
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1]}, // Reduced bottom margin
-                    { text: data.readingPerformerName || '', style: 'default', bold: true },
-                    { text: data.readingPerformerPosition || '', style: 'small' },
+                (invoiceCopyData.readingPerformerName || invoiceCopyData.readingPerformerPosition) ? [
+                    { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 15] as const }, 
+                    { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
+                    { text: invoiceCopyData.readingPerformerName || '', style: 'defaultCompact', bold: true },
+                    { text: invoiceCopyData.readingPerformerPosition || '', style: 'small' },
                 ] : {text: ''},
-                (data.signatoryName || data.signatoryPosition) ? [
-                    { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 20] },  // Reduced bottom margin for signature line
-                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1]}, // Reduced bottom margin
-                    { text: data.signatoryName || '', style: 'default', bold: true },
-                    { text: data.signatoryPosition || '', style: 'small' },
+                (invoiceCopyData.signatoryName || invoiceCopyData.signatoryPosition) ? [
+                    { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 15] as const },
+                    { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
+                    { text: invoiceCopyData.signatoryName || '', style: 'defaultCompact', bold: true },
+                    { text: invoiceCopyData.signatoryPosition || '', style: 'small' },
                 ] : {text: ''},
             ],
             columnGap: 20,
-            margin: [0, 15, 0, 0] // Margin for the whole signature block
+            margin: [0, 10, 0, 0] as const,
         },
-        { text: 'Thank you for your business!', style: 'small', alignment: 'center', margin: [0, 10, 0, 0] } // Reduced top margin
+        { text: 'Thank you for your business!', style: 'small', alignment: 'center' as const, margin: [0, 5, 0, 0] as const }
+      ];
+    };
+    
+    const documentDefinition: any = {
+      content: [
+        ...generateInvoiceContent(data, "Client's Copy"),
+        // Separator for the two copies
+        { text: ' ', margin: [0, 10, 0, 10] }, // Adds some space
+        { canvas: [{ type: 'line', x1: 5, y1: 5, x2: 590-5, y2: 5, dash: { length: 5, space: 2 }, lineColor: '#aaaaaa' }], margin: [0, 0, 0, 10] }, // Dashed cut line
+        { text: ' ', margin: [0, 10, 0, 10] }, // Adds some space
+        ...generateInvoiceContent(data, "Office Copy")
       ],
       defaultStyle: {
-        fontSize: 9,
-        lineHeight: 1.1, // Reduced line height
+        fontSize: 7.5, // Reduced further
+        lineHeight: 1.0, // Reduced further
         font: "Roboto", 
       },
       styles: {
-        header: { fontSize: 13, bold: true, margin: [0, 0, 0, 1], color: '#333333' }, // Slightly smaller header
-        address: { fontSize: 8, margin: [0,0,0,1], color: '#4A4A4A'},
-        invoiceTitle: { fontSize: 18, bold: true, color: '#1E40AF', margin: [0, 0, 0, 1] }, // Slightly smaller
-        subheader: { fontSize: 9, bold: true, margin: [0, 2, 0, 1], color: '#333333' }, // Smaller subheader
-        itemsTable: { margin: [0, 5, 0, 5], fontSize: 8 }, // Smaller items table font
-        tableHeader: { bold: true, fontSize: 8, color: '#1F2937'}, // Smaller table header font
-        summaryTable: { margin: [0,0,0,5], fontSize: 8.5}, // Smaller summary table font
-        totalAmountKey: {fontSize: 9, bold:true, color: '#1E40AF'}, // Smaller total
-        totalAmountValue: {fontSize: 9, bold:true, color: '#1E40AF'}, // Smaller total
-        smallHeader: { fontSize: 7.5, color: '#4A4A4A'}, // Smaller
-        small: { fontSize: 7.5, color: '#4A4A4A'}, // Smaller
-        default: {fontSize: 8.5, color: '#333333'} // Smaller default
+        header: { fontSize: 10, bold: true, margin: [0, 0, 0, 1], color: '#333333' }, 
+        address: { fontSize: 6.5, margin: [0,0,0,1], color: '#4A4A4A'},
+        invoiceTitle: { fontSize: 14, bold: true, color: '#1E40AF', margin: [0, 0, 0, 1] }, 
+        subheader: { fontSize: 7.5, bold: true, margin: [0, 1, 0, 1], color: '#333333' }, 
+        itemsTable: { margin: [0, 2, 0, 2], fontSize: 6.5 }, // Reduced further
+        tableHeader: { bold: true, fontSize: 6.5, color: '#1F2937'}, // Reduced further
+        summaryTable: { margin: [0,0,0,2], fontSize: 7}, // Reduced further
+        totalAmountKey: {fontSize: 7.5, bold:true, color: '#1E40AF'}, 
+        totalAmountValue: {fontSize: 7.5, bold:true, color: '#1E40AF'}, 
+        smallHeader: { fontSize: 6, color: '#4A4A4A'}, 
+        small: { fontSize: 6, color: '#4A4A4A'}, 
+        defaultCompact: {fontSize: 7, color: '#333333'}, // For general text in compact invoice
       },
       pageSize: 'A4',
-      pageMargins: [30, 30, 30, 30], // Reduced page margins slightly
+      pageOrientation: 'portrait',
+      pageMargins: [25, 25, 25, 25], 
       footer: function(currentPage: number, pageCount: number) { 
         return { 
           text: `Page ${currentPage.toString()} of ${pageCount.toString()}`, 
-          alignment: 'center',
+          alignment: 'center' as const,
           style: 'small',
-          margin: [0,0,0,15] // Reduced footer margin
+          margin: [0,0,0,10] as const
         }; 
       }
     };
