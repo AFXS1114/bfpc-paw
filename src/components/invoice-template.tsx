@@ -23,9 +23,9 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
   const companyLogoPath = "/company-logo.png"; // Assumes logo is named company-logo.png in the public folder
 
   return (
-    <div id="invoice-to-export" className="p-8 bg-background text-foreground font-sans text-sm max-w-4xl mx-auto border rounded-lg shadow-lg">
+    <div id="invoice-to-export" className="p-8 bg-white text-neutral-900 font-sans text-sm max-w-4xl mx-auto border rounded-lg shadow-lg">
       {/* Header */}
-      <header className="flex justify-between items-start pb-6 border-b mb-6">
+      <header className="flex justify-between items-start pb-6 border-b border-neutral-300 mb-6">
         <div>
           <Image 
             src={companyLogoPath} 
@@ -69,30 +69,30 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
       <section className="mb-8">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-muted/50 text-left">
-              <th className="p-2 border font-medium">Description</th>
-              <th className="p-2 border font-medium text-right">Previous Reading (kWh)</th>
-              <th className="p-2 border font-medium text-right">Present Reading (kWh)</th>
-              <th className="p-2 border font-medium text-right">Consumption (kWh)</th>
-              <th className="p-2 border font-medium text-right">Rate (₱/kWh)</th>
-              <th className="p-2 border font-medium text-right">Amount (₱)</th>
+            <tr className="bg-neutral-100 text-left"> {/* Changed bg-muted/50 to bg-neutral-100 for light theme */}
+              <th className="p-2 border border-neutral-300 font-medium">Description</th>
+              <th className="p-2 border border-neutral-300 font-medium text-right">Previous Reading (kWh)</th>
+              <th className="p-2 border border-neutral-300 font-medium text-right">Present Reading (kWh)</th>
+              <th className="p-2 border border-neutral-300 font-medium text-right">Consumption (kWh)</th>
+              <th className="p-2 border border-neutral-300 font-medium text-right">Rate (₱/kWh)</th>
+              <th className="p-2 border border-neutral-300 font-medium text-right">Amount (₱)</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className="p-2 border">Power Consumption</td>
-              <td className="p-2 border text-right">{data.clientPreviousReading.toLocaleString()}</td>
-              <td className="p-2 border text-right">{data.clientPresentReading.toLocaleString()}</td>
-              <td className="p-2 border text-right font-medium">{data.clientTotalKwh.toLocaleString()}</td>
-              <td className="p-2 border text-right">₱{data.basicRate.toFixed(4)}</td>
-              <td className="p-2 border text-right">{formatCurrency(data.clientTotalKwh * data.basicRate)}</td>
+              <td className="p-2 border border-neutral-300">Power Consumption</td>
+              <td className="p-2 border border-neutral-300 text-right">{data.clientPreviousReading.toLocaleString()}</td>
+              <td className="p-2 border border-neutral-300 text-right">{data.clientPresentReading.toLocaleString()}</td>
+              <td className="p-2 border border-neutral-300 text-right font-medium">{data.clientTotalKwh.toLocaleString()}</td>
+              <td className="p-2 border border-neutral-300 text-right">₱{data.basicRate.toFixed(4)}</td>
+              <td className="p-2 border border-neutral-300 text-right">{formatCurrency(data.clientTotalKwh * data.basicRate)}</td>
             </tr>
           </tbody>
         </table>
       </section>
       
       {/* Mother Bill Reference (Optional for display, good for transparency) */}
-      <section className="mb-8 p-3 bg-muted/30 rounded-md text-xs">
+      <section className="mb-8 p-3 bg-neutral-50 rounded-md text-xs"> {/* Changed bg-muted/30 for light theme */}
         <h4 className="font-semibold mb-1 text-primary/80">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
         <div className="grid grid-cols-2 gap-x-4">
             <p>Total Mother Bill Amount: {formatCurrency(data.motherBillTotalAmount)}</p>
@@ -112,7 +112,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             <span>VAT (12%):</span>
             <span>{formatCurrency(data.vatAmount)}</span>
           </div>
-          <hr className="my-1 border-border"/>
+          <hr className="my-1 border-neutral-300"/> {/* Changed border-border */}
           <div className="flex justify-between font-bold text-lg text-primary">
             <span>Total Amount Due:</span>
             <span>{formatCurrency(data.totalAmountDue)}</span>
@@ -122,16 +122,14 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
 
       {/* Footer / Payment Instructions */}
       {data.paymentInstructions && (
-        <footer className="pt-6 border-t">
+        <footer className="pt-6 border-t border-neutral-300"> {/* Changed border-border */}
           <h3 className="font-semibold text-primary mb-1">Payment Instructions:</h3>
           <p className="text-sm whitespace-pre-line">{data.paymentInstructions}</p>
         </footer>
       )}
-       <div className="mt-8 text-center text-xs text-muted-foreground">
+       <div className="mt-8 text-center text-xs text-neutral-500"> {/* Changed text-muted-foreground */}
         <p>Thank you for your business!</p>
       </div>
     </div>
   );
 }
-
-    
