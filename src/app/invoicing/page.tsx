@@ -46,6 +46,29 @@ const MONTHS = [
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i); // Last 5 years, current year, next 4 years
 
+async function imageToDataUrl(src: string): Promise<string | null> {
+  try {
+    const response = await fetch(src);
+    if (!response.ok) {
+      console.error(`Failed to fetch image: ${response.status} ${response.statusText} for src: ${src}`);
+      return null;
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = (error) => {
+        console.error("FileReader error:", error);
+        reject(error);
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Error converting image to data URL:", error);
+    return null;
+  }
+}
+
 export default function InvoicingPage() {
   const { toast } = useToast();
   const [clients, setClients] = useState<ClientDocument[]>([]);
@@ -225,12 +248,14 @@ export default function InvoicingPage() {
     }
   };
 
-  const handleExportToPdf = () => {
+  const handleExportToPdf = async () => {
     if (!invoiceData) {
       toast({ title: "No Invoice Data", description: "Generate invoice data first.", variant: "destructive" });
       return;
     }
     setIsExportingPdf(true);
+
+    const logoDataUrl = await imageToDataUrl('/company-logo.png');
 
     const formatCurrency = (amount: number) => {
         return `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -238,16 +263,23 @@ export default function InvoicingPage() {
     
     const data = invoiceData; 
 
+    const headerContent: any[] = [];
+    if (logoDataUrl) {
+      headerContent.push({ image: logoDataUrl, width: 70, alignment: 'center', margin: [0, 0, 0, 5] });
+    }
+    headerContent.push({ text: data.companyName, style: 'header', alignment: 'center' });
+    headerContent.push({ text: data.companyAddressLine1, style: 'address', alignment: 'center' });
+    if (data.companyAddressLine2) {
+      headerContent.push({ text: data.companyAddressLine2, style: 'address', alignment: 'center'});
+    }
+    
+
     const documentDefinition: any = {
       content: [
         {
           columns: [
-            [
-              { text: data.companyName, style: 'header' },
-              { text: data.companyAddressLine1, style: 'address' },
-              data.companyAddressLine2 ? { text: data.companyAddressLine2, style: 'address' } : null,
-            ],
-            [
+            [...headerContent], // Company info centered
+            [ // Invoice title and details on the right
               { text: 'INVOICE', style: 'invoiceTitle', alignment: 'right' },
               { text: `Invoice #: ${data.invoiceNumber}`, alignment: 'right', style: 'small' },
               { text: `Date: ${data.invoiceDate}`, alignment: 'right', style: 'small' },
@@ -255,7 +287,7 @@ export default function InvoicingPage() {
           ],
           columnGap: 10,
         },
-        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1, lineColor: '#cccccc' }], margin: [0, 5, 0, 10] },
+        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 0.5, lineColor: '#cccccc' }], margin: [0, 5, 0, 10] },
         {
           columns: [
             [
@@ -274,7 +306,7 @@ export default function InvoicingPage() {
         {
           style: 'itemsTable',
           table: {
-            widths: ['*', 60, 60, 60, 70, 75], // Adjusted column widths
+            widths: ['*', 60, 60, 60, 70, 75], 
             body: [
               [
                 { text: 'Description', style: 'tableHeader' },
@@ -346,66 +378,62 @@ export default function InvoicingPage() {
           ],
           margin: [0, 5, 0, 10]
         },
-        { text: '', RFS_spacer: true, margin: [0,0,0,0]},
-        data.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 10, 0, 2] } : {text:''},
-        data.paymentInstructions ? { text: data.paymentInstructions, style: 'default', margin: [0, 0, 0, 20] } : {text:''},
+        { text: '', margin: [0,0,0,10]}, // Reduced spacer margin
+        data.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 5, 0, 2] } : {text:''}, // Reduced top margin
+        data.paymentInstructions ? { text: data.paymentInstructions, style: 'default', margin: [0, 0, 0, 10] } : {text:''}, // Reduced bottom margin
+        
+        // Signatures section with flexible space
         {
-          columns: [
-            (data.readingPerformerName || data.readingPerformerPosition) ? [
-              { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 25] }, 
-              { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,2]},
-              { text: data.readingPerformerName || '', style: 'default', bold: true },
-              { text: data.readingPerformerPosition || '', style: 'small' },
-            ] : { text: '' },
-            (data.signatoryName || data.signatoryPosition) ? [
-              { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 25] }, 
-              { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,2]},
-              { text: data.signatoryName || '', style: 'default', bold: true },
-              { text: data.signatoryPosition || '', style: 'small' },
-            ] : { text: '' },
-          ],
-          columnGap: 20,
+            columns: [
+                (data.readingPerformerName || data.readingPerformerPosition) ? [
+                    { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 20] }, // Reduced bottom margin for signature line
+                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1]}, // Reduced bottom margin
+                    { text: data.readingPerformerName || '', style: 'default', bold: true },
+                    { text: data.readingPerformerPosition || '', style: 'small' },
+                ] : {text: ''},
+                (data.signatoryName || data.signatoryPosition) ? [
+                    { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 20] },  // Reduced bottom margin for signature line
+                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1]}, // Reduced bottom margin
+                    { text: data.signatoryName || '', style: 'default', bold: true },
+                    { text: data.signatoryPosition || '', style: 'small' },
+                ] : {text: ''},
+            ],
+            columnGap: 20,
+            margin: [0, 15, 0, 0] // Margin for the whole signature block
         },
-        { text: 'Thank you for your business!', style: 'small', alignment: 'center', margin: [0, 20, 0, 0] } 
+        { text: 'Thank you for your business!', style: 'small', alignment: 'center', margin: [0, 10, 0, 0] } // Reduced top margin
       ],
       defaultStyle: {
         fontSize: 9,
-        lineHeight: 1.2,
+        lineHeight: 1.1, // Reduced line height
         font: "Roboto", 
       },
       styles: {
-        header: { fontSize: 14, bold: true, margin: [0, 0, 0, 2], color: '#333333' }, // Darker header text
-        address: { fontSize: 8, margin: [0,0,0,1], color: '#4A4A4A'}, // Darker address text
-        invoiceTitle: { fontSize: 20, bold: true, color: '#1E40AF', margin: [0, 0, 0, 1] }, // Darker blue
-        subheader: { fontSize: 10, bold: true, margin: [0, 3, 0, 1], color: '#333333' },
-        itemsTable: { margin: [0, 5, 0, 5], fontSize: 8.5 },
-        tableHeader: { bold: true, fontSize: 8.5, color: '#1F2937'}, // Darker table header
-        summaryTable: { margin: [0,0,0,5], fontSize: 9},
-        totalAmountKey: {fontSize: 10, bold:true, color: '#1E40AF'}, // Darker blue
-        totalAmountValue: {fontSize: 10, bold:true, color: '#1E40AF'}, // Darker blue
-        smallHeader: { fontSize: 8, color: '#4A4A4A'},
-        small: { fontSize: 8, color: '#4A4A4A'},
-        default: {fontSize: 9, color: '#333333'} // Default text darker
+        header: { fontSize: 13, bold: true, margin: [0, 0, 0, 1], color: '#333333' }, // Slightly smaller header
+        address: { fontSize: 8, margin: [0,0,0,1], color: '#4A4A4A'},
+        invoiceTitle: { fontSize: 18, bold: true, color: '#1E40AF', margin: [0, 0, 0, 1] }, // Slightly smaller
+        subheader: { fontSize: 9, bold: true, margin: [0, 2, 0, 1], color: '#333333' }, // Smaller subheader
+        itemsTable: { margin: [0, 5, 0, 5], fontSize: 8 }, // Smaller items table font
+        tableHeader: { bold: true, fontSize: 8, color: '#1F2937'}, // Smaller table header font
+        summaryTable: { margin: [0,0,0,5], fontSize: 8.5}, // Smaller summary table font
+        totalAmountKey: {fontSize: 9, bold:true, color: '#1E40AF'}, // Smaller total
+        totalAmountValue: {fontSize: 9, bold:true, color: '#1E40AF'}, // Smaller total
+        smallHeader: { fontSize: 7.5, color: '#4A4A4A'}, // Smaller
+        small: { fontSize: 7.5, color: '#4A4A4A'}, // Smaller
+        default: {fontSize: 8.5, color: '#333333'} // Smaller default
       },
       pageSize: 'A4',
-      pageMargins: [40, 40, 40, 40], 
+      pageMargins: [30, 30, 30, 30], // Reduced page margins slightly
       footer: function(currentPage: number, pageCount: number) { 
         return { 
           text: `Page ${currentPage.toString()} of ${pageCount.toString()}`, 
           alignment: 'center',
           style: 'small',
-          margin: [0,0,0,20] 
+          margin: [0,0,0,15] // Reduced footer margin
         }; 
       }
     };
-
-    const spacerIndex = documentDefinition.content.findIndex((item: any) => item.RFS_spacer);
-    if(spacerIndex !== -1) {
-        const estimatedLines = JSON.stringify(data).length / 100; 
-        const dynamicMargin = Math.max(0, 300 - (estimatedLines * 10)); 
-        (documentDefinition.content[spacerIndex] as any).margin[3] = dynamicMargin;
-    }
-
+    
     try {
       pdfMake.createPdf(documentDefinition).download(`Invoice-${invoiceData.invoiceNumber}.pdf`);
       toast({
@@ -539,8 +567,5 @@ export default function InvoicingPage() {
     </main>
   );
 }
-
-
-    
 
     
