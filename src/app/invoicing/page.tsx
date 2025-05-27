@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,18 +18,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp } from "firebase/firestore";
 import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument, ReadingPerformerDocument } from "@/types";
 import { FileText, Search, Loader2, Download } from "lucide-react";
 import { format } from "date-fns";
-import { InvoiceTemplate } from "@/components/invoice-template";
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+
+import pdfMake from "pdfmake/build/pdfmake";
+import pdfFonts from "pdfmake/build/vfs_fonts";
+
+pdfMake.vfs = pdfFonts.pdfMake.vfs;
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -47,7 +47,7 @@ export default function InvoicingPage() {
   const [selectedBillingMonth, setSelectedBillingMonth] = useState<string>(MONTHS[new Date().getMonth()]);
   const [selectedBillingYear, setSelectedBillingYear] = useState<string>(currentYear.toString());
 
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
@@ -75,14 +75,14 @@ export default function InvoicingPage() {
       toast({ title: "Missing Information", description: "Please select a client, billing month, and year.", variant: "destructive" });
       return;
     }
-    setIsGenerating(true);
+    setIsGeneratingPreview(true);
     setInvoiceData(null); 
 
     try {
       const client = clients.find(c => c.id === selectedClientId);
       if (!client) {
         toast({ title: "Client Not Found", description: "Selected client data could not be found.", variant: "destructive" });
-        setIsGenerating(false);
+        setIsGeneratingPreview(false);
         return;
       }
 
@@ -101,7 +101,7 @@ export default function InvoicingPage() {
           description: `No power reading found for ${client.clientName} for ${selectedBillingMonth} ${selectedBillingYear}.`,
           variant: "destructive",
         });
-        setIsGenerating(false);
+        setIsGeneratingPreview(false);
         return;
       }
       const powerReadingDoc = powerReadingSnapshot.docs[0].data() as PowerReadingDocument;
@@ -121,7 +121,7 @@ export default function InvoicingPage() {
           description: `No power mother bill found for ${selectedBillingMonth} ${selectedBillingYear}. Cannot generate invoice.`,
           variant: "destructive",
         });
-        setIsGenerating(false);
+        setIsGeneratingPreview(false);
         return;
       }
       const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
@@ -132,7 +132,7 @@ export default function InvoicingPage() {
           description: `Mother bill for ${selectedBillingMonth} ${selectedBillingYear} has zero total consumption. Cannot calculate rate.`,
           variant: "destructive",
         });
-        setIsGenerating(false);
+        setIsGeneratingPreview(false);
         return;
       }
       
@@ -193,7 +193,6 @@ export default function InvoicingPage() {
         companyName: "BULAN FISH PORT COMPLEX",
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
         companyAddressLine2: "", 
-        companyLogoUrl: "/company-logo.png", 
         paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office.",
         signatoryName: signatoryDetails?.name,
         signatoryPosition: signatoryDetails?.position,
@@ -201,74 +200,244 @@ export default function InvoicingPage() {
         readingPerformerPosition: readingPerformerDetails?.position,
       };
       setInvoiceData(generatedInvoiceData);
+      toast({
+        title: "Invoice Data Ready",
+        description: "Invoice data has been prepared. Click 'Export to PDF' to generate the document.",
+      });
 
     } catch (error) {
-      console.error("Error generating invoice preview: ", error);
+      console.error("Error generating invoice data: ", error);
       toast({
-        title: "Invoice Generation Failed",
-        description: "Could not generate invoice preview. Please try again.",
+        title: "Data Preparation Failed",
+        description: "Could not prepare invoice data. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingPreview(false);
     }
   };
 
-  const handleExportToPdf = async () => {
+  const handleExportToPdf = () => {
     if (!invoiceData) {
-      toast({ title: "No Invoice", description: "Generate an invoice preview first.", variant: "destructive" });
+      toast({ title: "No Invoice Data", description: "Generate invoice data first.", variant: "destructive" });
       return;
     }
     setIsExportingPdf(true);
-    const invoiceElement = document.getElementById('invoice-to-export');
-    if (!invoiceElement) {
-      toast({ title: "Error", description: "Invoice element not found for PDF export.", variant: "destructive" });
-      setIsExportingPdf(false);
-      return;
+
+    const formatCurrency = (amount: number) => {
+        // pdfmake doesn't directly support toLocaleString with currency symbols well in all contexts.
+        // It's better to format it as a string P xxx.xx
+        return `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+    
+    const data = invoiceData; // Alias for convenience
+
+    const documentDefinition: any = {
+      content: [
+        // Section 1: Header
+        {
+          columns: [
+            [
+              { text: data.companyName, style: 'header' },
+              { text: data.companyAddressLine1, style: 'address' },
+              data.companyAddressLine2 ? { text: data.companyAddressLine2, style: 'address' } : null,
+            ],
+            [
+              { text: 'INVOICE', style: 'invoiceTitle', alignment: 'right' },
+              { text: `Invoice #: ${data.invoiceNumber}`, alignment: 'right', style: 'small' },
+              { text: `Date: ${data.invoiceDate}`, alignment: 'right', style: 'small' },
+            ]
+          ],
+          columnGap: 10,
+        },
+        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1, lineColor: '#cccccc' }], margin: [0, 5, 0, 10] },
+
+
+        // Section 2: Bill To, Billing Period
+        {
+          columns: [
+            [
+              { text: 'Bill To:', style: 'subheader' },
+              { text: data.clientName, style: 'default' },
+              { text: `Stall No: ${data.stallNo}`, style: 'default' },
+            ],
+            [
+              { text: 'Billing Period:', style: 'subheader', alignment: 'right' },
+              { text: `${data.billingMonth} ${data.billingYear}`, alignment: 'right', style: 'default' },
+            ]
+          ],
+          columnGap: 10,
+          margin: [0, 0, 0, 10]
+        },
+
+        // Section 3: Items Table
+        {
+          style: 'itemsTable',
+          table: {
+            widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
+            body: [
+              [
+                { text: 'Description', style: 'tableHeader' },
+                { text: 'Prev.\n(kWh)', style: 'tableHeader', alignment: 'right' },
+                { text: 'Pres.\n(kWh)', style: 'tableHeader', alignment: 'right' },
+                { text: 'Cons.\n(kWh)', style: 'tableHeader', alignment: 'right' },
+                { text: 'Rate\n(P/kWh)', style: 'tableHeader', alignment: 'right' },
+                { text: 'Amount\n(P)', style: 'tableHeader', alignment: 'right' },
+              ],
+              [
+                'Power Consumption',
+                { text: data.clientPreviousReading.toLocaleString(), alignment: 'right' },
+                { text: data.clientPresentReading.toLocaleString(), alignment: 'right' },
+                { text: data.clientTotalKwh.toLocaleString(), alignment: 'right', bold: true },
+                { text: `P${data.basicRate.toFixed(4)}`, alignment: 'right' },
+                { text: formatCurrency(data.clientTotalKwh * data.basicRate), alignment: 'right' },
+              ]
+            ]
+          },
+          layout: {
+             hLineWidth: function (i: number, node: any) { return (i === 0 || i === node.table.body.length) ? 0.5 : 0.5; },
+             vLineWidth: function (i: number, node: any) { return 0.5; },
+             hLineColor: function (i: number, node: any) { return '#BFBFBF'; },
+             vLineColor: function (i: number, node: any) { return '#BFBFBF'; },
+             paddingLeft: function(i: number, node: any) { return 4; },
+             paddingRight: function(i: number, node: any) { return 4; },
+             paddingTop: function(i: number, node: any) { return 2; },
+             paddingBottom: function(i: number, node: any) { return 2; }
+          }
+        },
+        
+        // Section 4: Rate Calculation Basis
+        {
+          margin: [0, 5, 0, 5],
+          table: {
+            widths: ['*'],
+            body: [
+                [
+                    {
+                     text: [
+                        { text: 'Rate Calculation Basis (Mother Bill ', style: 'smallHeader' },
+                        { text: `${data.billingMonth} ${data.billingYear}):`, style: 'smallHeader', bold: true },
+                        { text: ` Total MB Amount: ${formatCurrency(data.motherBillTotalAmount)} \t | \t Total MB Cons: ${data.motherBillTotalConsumption.toLocaleString()} kWh`, style: 'small' }
+                      ],
+                      fillColor: '#F5F5F5', // Light grey background for this section
+                      border: [true, true, true, true], // Add borders around this section
+                      borderColor: ['#E0E0E0', '#E0E0E0', '#E0E0E0', '#E0E0E0'],
+                      margin: [0, 2]
+                    }
+                ]
+            ]
+          },
+           layout: 'noBorders' // no borders for the outer table, only for the cell content
+        },
+
+
+        // Section 5: Summary
+        {
+          columns: [
+            { width: '*', text: '' }, // Spacer
+            {
+              width: 'auto',
+              style: 'summaryTable',
+              table: {
+                widths: ['auto', 'auto'],
+                body: [
+                  ['Subtotal:', { text: formatCurrency(data.amountBeforeVAT), alignment: 'right' }],
+                  ['VAT (12%):', { text: formatCurrency(data.vatAmount), alignment: 'right' }],
+                  [{ text: 'Total Amount Due:', bold: true, style:'totalAmountKey' }, { text: formatCurrency(data.totalAmountDue), alignment: 'right', bold: true, style:'totalAmountValue' }]
+                ]
+              },
+              layout: 'noBorders'
+            }
+          ],
+          margin: [0, 5, 0, 10]
+        },
+        
+        // Spacer to push content towards bottom - this is a common pdfmake pattern
+        { text: '', RFS_spacer: true, margin: [0,0,0,0]},
+
+
+        // Section 6: Payment Instructions
+        data.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 10, 0, 2] } : {text:''},
+        data.paymentInstructions ? { text: data.paymentInstructions, style: 'default', margin: [0, 0, 0, 20] } : {text:''},
+
+        // Section 7: Signatories
+        {
+          columns: [
+            (data.readingPerformerName || data.readingPerformerPosition) ? [
+              { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 25] }, // Increased bottom margin for signature space
+              { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,2]},
+              { text: data.readingPerformerName || '', style: 'default', bold: true },
+              { text: data.readingPerformerPosition || '', style: 'small' },
+            ] : { text: '' },
+            (data.signatoryName || data.signatoryPosition) ? [
+              { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 25] }, // Increased bottom margin for signature space
+              { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,2]},
+              { text: data.signatoryName || '', style: 'default', bold: true },
+              { text: data.signatoryPosition || '', style: 'small' },
+            ] : { text: '' },
+          ],
+          columnGap: 20,
+        },
+        
+        { text: 'Thank you for your business!', style: 'small', alignment: 'center', margin: [0, 20, 0, 0] } // Added top margin
+      ],
+      defaultStyle: {
+        fontSize: 9,
+        lineHeight: 1.2,
+        font: "Roboto", // pdfmake's default font
+      },
+      styles: {
+        header: { fontSize: 14, bold: true, margin: [0, 0, 0, 2] },
+        address: { fontSize: 8, margin: [0,0,0,1]},
+        invoiceTitle: { fontSize: 20, bold: true, color: '#2563EB', margin: [0, 0, 0, 1] }, // Blue color
+        subheader: { fontSize: 10, bold: true, margin: [0, 3, 0, 1] },
+        itemsTable: { margin: [0, 5, 0, 5], fontSize: 8.5 },
+        tableHeader: { bold: true, fontSize: 8.5, color: '#333333'},
+        summaryTable: { margin: [0,0,0,5], fontSize: 9},
+        totalAmountKey: {fontSize: 10, bold:true, color: '#2563EB'},
+        totalAmountValue: {fontSize: 10, bold:true, color: '#2563EB'},
+        smallHeader: { fontSize: 8, color: '#555555'},
+        small: { fontSize: 8, color: '#555555'},
+        default: {fontSize: 9}
+      },
+      pageSize: 'A4',
+      pageMargins: [40, 40, 40, 40], // [left, top, right, bottom]
+      footer: function(currentPage: number, pageCount: number) { 
+        return { 
+          text: `Page ${currentPage.toString()} of ${pageCount.toString()}`, 
+          alignment: 'center',
+          style: 'small',
+          margin: [0,0,0,20] // margin for footer from bottom
+        }; 
+      }
+    };
+
+    // Dynamic spacer logic
+    // This is a simplified approach. For pixel-perfect bottom alignment, a more complex calculation or pdfmake's footer callback is better.
+    let contentHeight = 0; // Placeholder for actual content height calculation if needed
+    // Simple fixed spacer for now, as calculating dynamic height is complex without rendering first.
+    // This attempts to push the signatories down, but might not be perfect for all content lengths.
+    const spacerIndex = documentDefinition.content.findIndex((item: any) => item.RFS_spacer);
+    if(spacerIndex !== -1) {
+        // Adjust margin for the spacer based on estimated content
+        // This is a very rough estimate.
+        const estimatedLines = JSON.stringify(data).length / 100; // very rough
+        const dynamicMargin = Math.max(0, 300 - (estimatedLines * 10)); // Adjust 300 and 10 as needed
+        (documentDefinition.content[spacerIndex] as any).margin[3] = dynamicMargin;
     }
 
+
     try {
-      const canvas = await html2canvas(invoiceElement, { 
-        scale: 1, 
-        useCORS: true,
-        // width: 794, // Removed to let html2canvas use element's natural width
-        // windowWidth: 794, // Removed
-        backgroundColor: '#ffffff'
+      pdfMake.createPdf(documentDefinition).download(`Invoice-${invoiceData.invoiceNumber}.pdf`);
+      toast({
+        title: "PDF Exported",
+        description: `Invoice ${invoiceData.invoiceNumber}.pdf has been downloaded.`,
       });
-      const imgData = canvas.toDataURL('image/png');
-      
-      const pdf = new jsPDF({
-        orientation: 'portrait', // Changed to portrait
-        unit: 'pt',
-        format: 'a4',
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth(); 
-      const pdfHeight = pdf.internal.pageSize.getHeight(); 
-      
-      const imgProps = pdf.getImageProperties(imgData);
-      const aspectRatio = imgProps.width / imgProps.height;
-      
-      const margin = 10; // Adjusted margin for portrait
-
-      let newImgWidth = pdfWidth - 2 * margin; 
-      let newImgHeight = newImgWidth / aspectRatio;
-
-      if (newImgHeight > pdfHeight - 2 * margin) {
-          newImgHeight = pdfHeight - 2 * margin; 
-          newImgWidth = newImgHeight * aspectRatio;
-      }
-      
-      const xOffset = (pdfWidth - newImgWidth) / 2;
-      const yOffset = (pdfHeight - newImgHeight) / 2;
-
-      pdf.addImage(imgData, 'PNG', xOffset, yOffset, newImgWidth, newImgHeight);
-      pdf.save(`Invoice-${invoiceData.invoiceNumber}.pdf`);
     } catch(e) {
-        console.error("Error exporting PDF: ", e);
-        toast({ title: "PDF Export Failed", description: "Could not export invoice to PDF.", variant: "destructive"});
+      console.error("Error exporting PDF with pdfmake: ", e);
+      toast({ title: "PDF Export Failed", description: "Could not export invoice to PDF using pdfmake.", variant: "destructive"});
     } finally {
-        setIsExportingPdf(false);
+      setIsExportingPdf(false);
     }
   };
 
@@ -284,7 +453,7 @@ export default function InvoicingPage() {
               Select Client and Billing Period
             </CardTitle>
             <CardDescription>
-              Choose a client and the billing period to generate an invoice.
+              Choose a client and the billing period to generate invoice data.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -335,21 +504,21 @@ export default function InvoicingPage() {
                 </Select>
               </div>
             </div>
-            <Button onClick={handleGenerateInvoicePreview} disabled={isGenerating || isLoadingClients}>
-              {isGenerating ? (
+            <Button onClick={handleGenerateInvoicePreview} disabled={isGeneratingPreview || isLoadingClients}>
+              {isGeneratingPreview ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <FileText className="mr-2 h-4 w-4" />
               )}
-              Generate Invoice Preview
+              Generate Invoice Data
             </Button>
           </CardContent>
         </Card>
 
-        {isGenerating && (
+        {isGeneratingPreview && (
             <Card className="shadow-lg mt-6">
                 <CardHeader>
-                    <CardTitle>Generating Invoice...</CardTitle>
+                    <CardTitle>Preparing Invoice Data...</CardTitle>
                 </CardHeader>
                 <CardContent className="flex justify-center items-center py-10">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -357,12 +526,12 @@ export default function InvoicingPage() {
             </Card>
         )}
 
-        {invoiceData && !isGenerating && (
+        {invoiceData && !isGeneratingPreview && (
           <Card className="shadow-lg mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Invoice Preview</CardTitle>
-                <CardDescription>Review the generated invoice below. Export to PDF when ready.</CardDescription>
+                <CardTitle>Invoice Data Ready</CardTitle>
+                <CardDescription>Invoice data for {invoiceData.clientName} ({invoiceData.billingMonth} {invoiceData.billingYear}) is ready. Click to export.</CardDescription>
               </div>
               <Button onClick={handleExportToPdf} disabled={isExportingPdf}>
                 {isExportingPdf ? (
@@ -373,8 +542,17 @@ export default function InvoicingPage() {
                 Export to PDF
               </Button>
             </CardHeader>
-            <CardContent className="p-2 bg-muted/30 overflow-x-auto">
-              <InvoiceTemplate data={invoiceData} />
+            <CardContent className="p-4 bg-muted/30 overflow-x-auto">
+                <p className="text-sm text-muted-foreground">
+                    The detailed HTML preview has been removed. Click "Export to PDF" to generate the document using pdfmake.
+                </p>
+                <div className="mt-4 p-4 border rounded-md bg-background text-xs">
+                    <h4 className="font-semibold mb-2">Quick Data Summary:</h4>
+                    <p><strong>Client:</strong> {invoiceData.clientName} ({invoiceData.stallNo})</p>
+                    <p><strong>Period:</strong> {invoiceData.billingMonth} {invoiceData.billingYear}</p>
+                    <p><strong>Total kWh:</strong> {invoiceData.clientTotalKwh.toLocaleString()}</p>
+                    <p><strong>Total Amount Due:</strong> P{invoiceData.totalAmountDue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
             </CardContent>
           </Card>
         )}
@@ -382,4 +560,3 @@ export default function InvoicingPage() {
     </main>
   );
 }
-    

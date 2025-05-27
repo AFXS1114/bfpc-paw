@@ -143,7 +143,7 @@ export interface InvoiceData {
   companyName: string;
   companyAddressLine1: string;
   companyAddressLine2?: string;
-  companyLogoUrl?: string; 
+  // companyLogoUrl is removed as pdfmake handles images differently, can be re-added if base64 approach is chosen
   paymentInstructions?: string;
 
   // Signatory Details
