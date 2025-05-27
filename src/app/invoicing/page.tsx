@@ -27,14 +27,20 @@ import { FileText, Search, Loader2, Download } from "lucide-react";
 import { format } from "date-fns";
 
 import pdfMake from "pdfmake/build/pdfmake";
-import pdfFonts from "pdfmake/build/vfs_fonts";
+import * as pdfFontsModule from "pdfmake/build/vfs_fonts"; // Changed import style
 
-if ((pdfFonts as any).default && (pdfFonts as any).default.vfs) {
-  pdfMake.vfs = (pdfFonts as any).default.vfs;
-} else if ((pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
-  pdfMake.vfs = (pdfFonts as any).pdfMake.vfs;
-} else {
-  console.error("Failed to load pdfMake VFS fonts. pdfFonts structure:", pdfFonts);
+// Assign VFS fonts to pdfMake
+// The vfs_fonts.js file from pdfmake is a UMD module.
+// When imported as a namespace (* as pdfFontsModule), its exports are available on pdfFontsModule.
+// The typical structure is pdfFontsModule.pdfMake.vfs.
+if (pdfFontsModule && (pdfFontsModule as any).pdfMake && (pdfFontsModule as any).pdfMake.vfs) {
+  (pdfMake as any).vfs = (pdfFontsModule as any).pdfMake.vfs;
+} else if (pdfFontsModule && (pdfFontsModule as any).default && (pdfFontsModule as any).default.pdfMake && (pdfFontsModule as any).default.pdfMake.vfs) {
+  // Fallback if the expected structure is on the .default export of the namespace
+  (pdfMake as any).vfs = (pdfFontsModule as any).default.pdfMake.vfs;
+}
+else {
+  console.error("Failed to load pdfMake VFS fonts. pdfFontsModule structure:", pdfFontsModule);
 }
 
 
@@ -253,6 +259,10 @@ export default function InvoicingPage() {
       toast({ title: "No Invoice Data", description: "Generate invoice data first.", variant: "destructive" });
       return;
     }
+    if (!(pdfMake as any).vfs) {
+      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF without VFS fonts. Check console.", variant: "destructive" });
+      return;
+    }
     setIsExportingPdf(true);
 
     const logoDataUrl = await imageToDataUrl('/company-logo.png');
@@ -408,8 +418,8 @@ export default function InvoicingPage() {
         ...generateInvoiceContent(data, "Office Copy")
       ],
       defaultStyle: {
-        fontSize: 7.5, // Reduced further
-        lineHeight: 1.0, // Reduced further
+        fontSize: 7.5, 
+        lineHeight: 1.0, 
         font: "Roboto", 
       },
       styles: {
@@ -417,14 +427,14 @@ export default function InvoicingPage() {
         address: { fontSize: 6.5, margin: [0,0,0,1], color: '#4A4A4A'},
         invoiceTitle: { fontSize: 14, bold: true, color: '#1E40AF', margin: [0, 0, 0, 1] }, 
         subheader: { fontSize: 7.5, bold: true, margin: [0, 1, 0, 1], color: '#333333' }, 
-        itemsTable: { margin: [0, 2, 0, 2], fontSize: 6.5 }, // Reduced further
-        tableHeader: { bold: true, fontSize: 6.5, color: '#1F2937'}, // Reduced further
-        summaryTable: { margin: [0,0,0,2], fontSize: 7}, // Reduced further
+        itemsTable: { margin: [0, 2, 0, 2], fontSize: 6.5 }, 
+        tableHeader: { bold: true, fontSize: 6.5, color: '#1F2937'}, 
+        summaryTable: { margin: [0,0,0,2], fontSize: 7}, 
         totalAmountKey: {fontSize: 7.5, bold:true, color: '#1E40AF'}, 
         totalAmountValue: {fontSize: 7.5, bold:true, color: '#1E40AF'}, 
         smallHeader: { fontSize: 6, color: '#4A4A4A'}, 
         small: { fontSize: 6, color: '#4A4A4A'}, 
-        defaultCompact: {fontSize: 7, color: '#333333'}, // For general text in compact invoice
+        defaultCompact: {fontSize: 7, color: '#333333'}, 
       },
       pageSize: 'A4',
       pageOrientation: 'portrait',
