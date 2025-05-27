@@ -44,7 +44,7 @@ import { Calendar as CalendarIcon, Save, Loader2, Info } from "lucide-react";
 import Image from 'next/image';
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, where, getDocs, limit } from "firebase/firestore";
 import type { ClientDocument, PowerReadingEntry } from "@/types";
 
 const powerReadingFormSchema = z.object({
@@ -148,6 +148,27 @@ export default function PowerPage() {
     }
 
     try {
+      // Check for existing reading for the same client, month, and year
+      const checkForExistingQuery = query(
+        collection(db, "power-readings"),
+        where("clientId", "==", data.clientId),
+        where("billingMonth", "==", data.billingMonth),
+        where("billingYear", "==", data.billingYear),
+        limit(1)
+      );
+
+      const existingSnapshot = await getDocs(checkForExistingQuery);
+
+      if (!existingSnapshot.empty) {
+        toast({
+          title: "Duplicate Entry",
+          description: `A power reading for ${client.clientName} for ${data.billingMonth} ${data.billingYear} already exists.`,
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       const powerReadingData: Omit<PowerReadingEntry, 'id' | 'createdAt'> = {
         clientId: client.id,
         clientName: client.clientName,
@@ -254,7 +275,7 @@ export default function PowerPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Select Client</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingClients}>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingClients}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder={isLoadingClients ? "Loading clients..." : "Select a client"} />
@@ -295,7 +316,7 @@ export default function PowerPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Month</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select month" />
