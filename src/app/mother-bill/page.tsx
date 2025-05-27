@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -52,6 +52,7 @@ const motherBillFormSchema = z.object({
   billingYear: z.coerce.number().min(2000, "Invalid year.").max(new Date().getFullYear() + 5, "Invalid year."),
   pastReading: z.coerce.number().min(0, "Past reading must be non-negative."),
   presentReading: z.coerce.number().min(0, "Present reading must be non-negative."),
+  totalConsumption: z.coerce.number().min(0, "Total consumption must be non-negative."),
   totalAmountBilled: z.coerce.number().min(0, "Total amount must be non-negative."),
   notes: z.string().optional(),
 }).refine(data => data.presentReading >= data.pastReading, {
@@ -91,23 +92,13 @@ export default function PowerMotherBillPage() {
       billingYear: new Date().getFullYear(),
       pastReading: 0,
       presentReading: 0,
+      totalConsumption: 0,
       totalAmountBilled: 0,
       notes: "",
     },
   });
 
-  const { watch, reset } = form;
-  const pastReading = watch("pastReading");
-  const presentReading = watch("presentReading");
-
-  const totalConsumptionDisplay = useMemo(() => {
-    const past = Number(pastReading);
-    const present = Number(presentReading);
-    if (!isNaN(past) && !isNaN(present) && present >= past) {
-      return present - past;
-    }
-    return 0;
-  }, [pastReading, presentReading]);
+  const { reset } = form;
 
   useEffect(() => {
     setIsLoadingRecords(true);
@@ -150,7 +141,7 @@ export default function PowerMotherBillPage() {
         billingYear: data.billingYear,
         pastReading: data.pastReading,
         presentReading: data.presentReading,
-        totalConsumption: data.presentReading - data.pastReading,
+        totalConsumption: data.totalConsumption, // Use the directly entered total consumption
         totalAmountBilled: data.totalAmountBilled,
         notes: data.notes || "",
         createdAt: serverTimestamp(),
@@ -167,6 +158,7 @@ export default function PowerMotherBillPage() {
         billingYear: new Date().getFullYear(),
         pastReading: 0,
         presentReading: 0,
+        totalConsumption: 0,
         totalAmountBilled: 0,
         notes: "",
       });
@@ -271,10 +263,19 @@ export default function PowerMotherBillPage() {
                       </FormItem>
                     )}
                   />
-                  <FormItem>
-                    <FormLabel>Total Consumption ({CONSUMPTION_UNIT})</FormLabel>
-                    <Input type="number" value={totalConsumptionDisplay} readOnly className="bg-muted/80 font-semibold" />
-                  </FormItem>
+                  <FormField
+                    control={form.control}
+                    name="totalConsumption"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Consumption ({CONSUMPTION_UNIT})</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="e.g., 1500" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 <FormField
