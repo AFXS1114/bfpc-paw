@@ -250,7 +250,6 @@ export default function InvoicingPage() {
       
       const aspectRatio = imgProps.width / imgProps.height;
       
-      // Reduce margins from 20 (10 per side) to 10 (5 per side)
       const horizontalMargin = 10; 
       const verticalMargin = 10;
 
@@ -376,7 +375,7 @@ export default function InvoicingPage() {
                 Export to PDF
               </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-2"> {/* Reduced padding here */}
               <InvoiceTemplate data={invoiceData} />
             </CardContent>
           </Card>
@@ -385,3 +384,4 @@ export default function InvoicingPage() {
     </main>
   );
 }
+
