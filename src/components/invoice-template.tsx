@@ -23,83 +23,83 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
   const companyLogoPath = data.companyLogoUrl || "/company-logo.png"; 
 
   const renderInvoiceContent = (copyIdentifier?: string) => (
-    <div className="p-8 bg-white text-neutral-900 font-sans text-sm max-w-[794px] mx-auto border border-neutral-300 rounded-lg shadow-lg mb-6 break-inside-avoid">
+    <div className="p-6 bg-white text-neutral-900 font-sans text-sm max-w-[550px] w-full border border-neutral-300 rounded-lg shadow-lg break-inside-avoid flex-shrink-0 flex flex-col"> {/* Added flex flex-col for structure */}
       {/* Header */}
-      <header className="flex justify-between items-start pb-6 border-b border-neutral-300 mb-6">
+      <header className="flex justify-between items-start pb-4 border-b border-neutral-300 mb-4">
         <div>
           <Image 
             src={companyLogoPath} 
             alt={`${data.companyName || 'Company'} Logo`}
-            width={120} 
-            height={60} 
-            className="mb-2 object-contain"
+            width={100} 
+            height={50} 
+            className="mb-1 object-contain"
             data-ai-hint="company logo"
-            onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/120x60.png?text=No+Logo'; }}
+            onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/100x50.png?text=No+Logo'; }}
           />
-          <h1 className="text-2xl font-bold text-blue-700">{data.companyName}</h1>
-          <p className="text-neutral-700">{data.companyAddressLine1}</p>
-          {data.companyAddressLine2 && <p className="text-neutral-700">{data.companyAddressLine2}</p>}
+          <h1 className="text-xl font-bold text-blue-700">{data.companyName}</h1>
+          <p className="text-xs text-neutral-700">{data.companyAddressLine1}</p>
+          {data.companyAddressLine2 && <p className="text-xs text-neutral-700">{data.companyAddressLine2}</p>}
         </div>
-        <div className="text-right">
-          <h2 className="text-3xl font-semibold text-blue-600 mb-1">INVOICE {copyIdentifier && <span className="text-xs block normal-case">({copyIdentifier})</span>}</h2>
-          <p className="text-base text-neutral-800">
+        <div className="text-right flex-shrink-0">
+          <h2 className="text-2xl font-semibold text-blue-600 mb-1">INVOICE {copyIdentifier && <span className="text-xs block normal-case">({copyIdentifier})</span>}</h2>
+          <p className="text-xs text-neutral-800">
             <span className="font-medium">Invoice #:</span> {data.invoiceNumber}
           </p>
-          <p className="text-neutral-800">
+          <p className="text-xs text-neutral-800">
             <span className="font-medium">Date:</span> {data.invoiceDate}
           </p>
         </div>
       </header>
 
       {/* Client Information */}
-      <section className="mb-8 grid grid-cols-2 gap-4">
+      <section className="mb-6 grid grid-cols-2 gap-2">
         <div>
-          <h3 className="font-semibold text-blue-700 mb-1">Bill To:</h3>
-          <p className="font-medium text-neutral-800">{data.clientName}</p>
-          <p className="text-neutral-700">Stall No: {data.stallNo}</p>
+          <h3 className="font-semibold text-blue-700 mb-1 text-sm">Bill To:</h3>
+          <p className="font-medium text-neutral-800 text-xs">{data.clientName}</p>
+          <p className="text-neutral-700 text-xs">Stall No: {data.stallNo}</p>
         </div>
         <div className="text-right">
-           <h3 className="font-semibold text-blue-700 mb-1">Billing Period:</h3>
-           <p className="text-neutral-700">{data.billingMonth} {data.billingYear}</p>
+           <h3 className="font-semibold text-blue-700 mb-1 text-sm">Billing Period:</h3>
+           <p className="text-neutral-700 text-xs">{data.billingMonth} {data.billingYear}</p>
         </div>
       </section>
 
       {/* Line Items Table */}
-      <section className="mb-8">
-        <table className="w-full border-collapse">
+      <section className="mb-6">
+        <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="bg-neutral-100 text-left text-neutral-800">
-              <th className="p-2 border border-neutral-300 font-medium">Description</th>
-              <th className="p-2 border border-neutral-300 font-medium text-right">Previous Reading (kWh)</th>
-              <th className="p-2 border border-neutral-300 font-medium text-right">Present Reading (kWh)</th>
-              <th className="p-2 border border-neutral-300 font-medium text-right">Consumption (kWh)</th>
-              <th className="p-2 border border-neutral-300 font-medium text-right">Rate (₱/kWh)</th>
-              <th className="p-2 border border-neutral-300 font-medium text-right">Amount (₱)</th>
+              <th className="p-1 border border-neutral-300 font-medium">Description</th>
+              <th className="p-1 border border-neutral-300 font-medium text-right whitespace-nowrap">Prev.<br/>(kWh)</th>
+              <th className="p-1 border border-neutral-300 font-medium text-right whitespace-nowrap">Pres.<br/>(kWh)</th>
+              <th className="p-1 border border-neutral-300 font-medium text-right whitespace-nowrap">Cons.<br/>(kWh)</th>
+              <th className="p-1 border border-neutral-300 font-medium text-right whitespace-nowrap">Rate<br/>(₱/kWh)</th>
+              <th className="p-1 border border-neutral-300 font-medium text-right whitespace-nowrap">Amount<br/>(₱)</th>
             </tr>
           </thead>
           <tbody>
             <tr className="text-neutral-700">
-              <td className="p-2 border border-neutral-300">Power Consumption</td>
-              <td className="p-2 border border-neutral-300 text-right">{data.clientPreviousReading.toLocaleString()}</td>
-              <td className="p-2 border border-neutral-300 text-right">{data.clientPresentReading.toLocaleString()}</td>
-              <td className="p-2 border border-neutral-300 text-right font-medium">{data.clientTotalKwh.toLocaleString()}</td>
-              <td className="p-2 border border-neutral-300 text-right">₱{data.basicRate.toFixed(4)}</td>
-              <td className="p-2 border border-neutral-300 text-right">{formatCurrency(data.clientTotalKwh * data.basicRate)}</td>
+              <td className="p-1 border border-neutral-300">Power Consumption</td>
+              <td className="p-1 border border-neutral-300 text-right">{data.clientPreviousReading.toLocaleString()}</td>
+              <td className="p-1 border border-neutral-300 text-right">{data.clientPresentReading.toLocaleString()}</td>
+              <td className="p-1 border border-neutral-300 text-right font-medium">{data.clientTotalKwh.toLocaleString()}</td>
+              <td className="p-1 border border-neutral-300 text-right">₱{data.basicRate.toFixed(4)}</td>
+              <td className="p-1 border border-neutral-300 text-right">{formatCurrency(data.clientTotalKwh * data.basicRate)}</td>
             </tr>
           </tbody>
         </table>
       </section>
       
-      <section className="mb-8 p-3 bg-neutral-50 rounded-md text-xs text-neutral-700">
-        <h4 className="font-semibold mb-1 text-blue-600">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
-        <div className="grid grid-cols-2 gap-x-4">
-            <p>Total Mother Bill Amount: {formatCurrency(data.motherBillTotalAmount)}</p>
-            <p>Total Mother Bill Consumption: {data.motherBillTotalConsumption.toLocaleString()} kWh</p>
+      <section className="mb-6 p-2 bg-neutral-50 rounded-md text-[10px] text-neutral-700">
+        <h4 className="font-semibold mb-0.5 text-blue-600">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
+        <div className="grid grid-cols-2 gap-x-2">
+            <p>Total MB Amount: {formatCurrency(data.motherBillTotalAmount)}</p>
+            <p>Total MB Cons: {data.motherBillTotalConsumption.toLocaleString()} kWh</p>
         </div>
       </section>
 
-      <section className="flex justify-end mb-8 text-neutral-800">
-        <div className="w-full md:w-1/2 lg:w-1/3 space-y-1">
+      <section className="flex justify-end mb-6 text-neutral-800 text-xs">
+        <div className="w-full md:w-2/3 space-y-0.5">
           <div className="flex justify-between">
             <span>Subtotal:</span>
             <span>{formatCurrency(data.amountBeforeVAT)}</span>
@@ -108,57 +108,69 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             <span>VAT (12%):</span>
             <span>{formatCurrency(data.vatAmount)}</span>
           </div>
-          <hr className="my-1 border-neutral-300"/>
-          <div className="flex justify-between font-bold text-lg text-blue-700">
+          <hr className="my-0.5 border-neutral-300"/>
+          <div className="flex justify-between font-bold text-sm text-blue-700">
             <span>Total Amount Due:</span>
             <span>{formatCurrency(data.totalAmountDue)}</span>
           </div>
         </div>
       </section>
 
+      <div className="flex-grow"></div> {/* Spacer to push footer to bottom */}
+
       {data.paymentInstructions && (
-        <footer className="pt-6 border-t border-neutral-300 text-neutral-700">
-          <h3 className="font-semibold text-blue-700 mb-1">Payment Instructions:</h3>
-          <p className="text-sm whitespace-pre-line">{data.paymentInstructions}</p>
+        <footer className="pt-4 border-t border-neutral-300 text-neutral-700 mt-auto"> {/* mt-auto to push to bottom */}
+          <h3 className="font-semibold text-blue-700 mb-1 text-sm">Payment Instructions:</h3>
+          <p className="text-[10px] whitespace-pre-line">{data.paymentInstructions}</p>
         </footer>
       )}
 
       {/* Personnel Section */}
-      <div className="mt-12 pt-8 border-t border-neutral-300">
-        <div className="grid grid-cols-2 gap-8">
+      <div className="mt-8 pt-4 border-t border-neutral-300 text-xs">
+        <div className="grid grid-cols-2 gap-4">
           {(data.readingPerformerName || data.readingPerformerPosition) && (
             <div>
-              <p className="mb-1 text-sm font-medium text-neutral-700">Readings Performed by:</p>
-              <div className="mt-10 mb-1 border-b border-neutral-500 h-4"></div> {/* Signature line */}
-              <p className="mt-1 text-sm font-semibold text-neutral-800">{data.readingPerformerName || "_________________________"}</p>
-              <p className="text-xs text-neutral-600">{data.readingPerformerPosition || "Position"}</p>
+              <p className="mb-0.5 text-[10px] font-medium text-neutral-700">Readings Performed by:</p>
+              <div className="mt-6 mb-0.5 border-b border-neutral-500 h-3"></div> {/* Signature line */}
+              <p className="mt-0.5 text-[10px] font-semibold text-neutral-800">{data.readingPerformerName || "___________________"}</p>
+              <p className="text-[9px] text-neutral-600">{data.readingPerformerPosition || "Position"}</p>
             </div>
           )}
            {(data.signatoryName || data.signatoryPosition) && (
-            <div className={(data.readingPerformerName || data.readingPerformerPosition) ? "" : "col-start-1"}> {/* Adjust if only one signatory type exists */}
-              <p className="mb-1 text-sm font-medium text-neutral-700">Prepared by:</p>
-              <div className="mt-10 mb-1 border-b border-neutral-500 h-4"></div> {/* Signature line */}
-              <p className="mt-1 text-sm font-semibold text-neutral-800">{data.signatoryName || "_________________________"}</p>
-              <p className="text-xs text-neutral-600">{data.signatoryPosition || "Position"}</p>
+            <div className={(data.readingPerformerName || data.readingPerformerPosition) ? "" : "col-start-1"}>
+              <p className="mb-0.5 text-[10px] font-medium text-neutral-700">Prepared by:</p>
+              <div className="mt-6 mb-0.5 border-b border-neutral-500 h-3"></div> {/* Signature line */}
+              <p className="mt-0.5 text-[10px] font-semibold text-neutral-800">{data.signatoryName || "___________________"}</p>
+              <p className="text-[9px] text-neutral-600">{data.signatoryPosition || "Position"}</p>
             </div>
           )}
         </div>
       </div>
 
-       <div className="mt-8 text-center text-xs text-neutral-500">
+       <div className="mt-6 text-center text-[10px] text-neutral-500">
         <p>Thank you for your business!</p>
       </div>
     </div>
   );
 
   return (
-    <div id="invoice-to-export" className="max-w-[794px] mx-auto">
+    // Main container for side-by-side invoices, targeting approx 1122px width for html2canvas
+    <div id="invoice-to-export" className="max-w-[1122px] mx-auto flex flex-row justify-center items-start py-4 px-2 gap-3 bg-gray-100"> {/* Added bg for visibility */}
       {renderInvoiceContent("Client's Copy")}
-      <div className="my-4 py-2 text-center border-t-2 border-b-2 border-dashed border-neutral-400 text-neutral-500 font-mono text-sm">
-        ----------- Cut Here -----------
+      
+      {/* Vertical Cut Line */}
+      <div className="flex flex-col items-center self-stretch justify-center min-h-full pt-8 pb-8 mx-1">
+        <div className="w-px border-l-2 border-dashed border-neutral-400 flex-grow"></div>
+        <span 
+            className="my-2 text-neutral-500 font-mono text-xs" 
+            style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+        >
+            CUT HERE
+        </span>
+        <div className="w-px border-l-2 border-dashed border-neutral-400 flex-grow"></div>
       </div>
+      
       {renderInvoiceContent("Office Copy")}
     </div>
   );
 }
-

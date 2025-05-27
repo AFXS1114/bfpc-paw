@@ -232,35 +232,43 @@ export default function InvoicingPage() {
     }
 
     try {
+      // Ensure the element is fully visible or rendered for html2canvas if it relies on viewport
+      // For elements with fixed width (like 1122px), this might be less of an issue.
       const canvas = await html2canvas(invoiceElement, { 
-        scale: 2, 
-        useCORS: true 
+        scale: 2, // Increase scale for better resolution
+        useCORS: true,
+        width: 1122, // Explicitly set capture width
+        windowWidth: 1122 // Ensure html2canvas uses this width for layout
       });
       const imgData = canvas.toDataURL('image/png');
 
+      // A4 landscape: 297mm width x 210mm height. 1 point = 1/72 inch.
+      // 297mm ~ 11.69 inches. 11.69 * 72 = 841.68 points (width)
+      // 210mm ~ 8.27 inches. 8.27 * 72 = 595.44 points (height)
       const pdf = new jsPDF({
-        orientation: 'portrait',
+        orientation: 'landscape', // Changed to landscape
         unit: 'pt',
-        format: 'a4',
+        format: 'a4', // A4 size
       });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth(); // Approx 841.89 pt for A4 landscape
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // Approx 595.28 pt for A4 landscape
       
+      const imgProps = pdf.getImageProperties(imgData);
       const aspectRatio = imgProps.width / imgProps.height;
       
-      const horizontalMargin = 10; 
-      const verticalMargin = 10;
+      const margin = 10; // Reduced margin in points
 
-      let newImgWidth = pdfWidth - horizontalMargin; 
+      let newImgWidth = pdfWidth - 2 * margin; 
       let newImgHeight = newImgWidth / aspectRatio;
 
-      if (newImgHeight > pdfHeight - verticalMargin) {
-          newImgHeight = pdfHeight - verticalMargin; 
+      // If new height is still too large for the page, adjust based on height
+      if (newImgHeight > pdfHeight - 2 * margin) {
+          newImgHeight = pdfHeight - 2 * margin; 
           newImgWidth = newImgHeight * aspectRatio;
       }
       
+      // Center the image on the PDF page
       const xOffset = (pdfWidth - newImgWidth) / 2;
       const yOffset = (pdfHeight - newImgHeight) / 2;
 
@@ -375,7 +383,7 @@ export default function InvoicingPage() {
                 Export to PDF
               </Button>
             </CardHeader>
-            <CardContent className="p-2"> {/* Reduced padding here */}
+            <CardContent className="p-2 bg-gray-200 overflow-x-auto"> {/* Added bg for contrast and overflow for wide content */}
               <InvoiceTemplate data={invoiceData} />
             </CardContent>
           </Card>
@@ -384,4 +392,3 @@ export default function InvoicingPage() {
     </main>
   );
 }
-
