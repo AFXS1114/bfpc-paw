@@ -76,7 +76,7 @@ export default function InvoicingPage() {
       return;
     }
     setIsGenerating(true);
-    setInvoiceData(null); // Clear previous invoice
+    setInvoiceData(null); 
 
     try {
       const client = clients.find(c => c.id === selectedClientId);
@@ -86,7 +86,6 @@ export default function InvoicingPage() {
         return;
       }
 
-      // Fetch Power Reading for the client and period
       const powerReadingQuery = query(
         collection(db, "power-readings"),
         where("clientId", "==", selectedClientId),
@@ -107,7 +106,6 @@ export default function InvoicingPage() {
       }
       const powerReadingDoc = powerReadingSnapshot.docs[0].data() as PowerReadingDocument;
 
-      // Fetch corresponding Mother Bill
       const motherBillQuery = query(
         collection(db, "mother-bills"),
         where("utilityType", "==", "power"),
@@ -140,10 +138,9 @@ export default function InvoicingPage() {
       
       const basicRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
       const amountBeforeVAT = basicRate * powerReadingDoc.totalKwh;
-      const vatAmount = amountBeforeVAT * 0.12; // 12% VAT
+      const vatAmount = amountBeforeVAT * 0.12; 
       const totalAmountDue = amountBeforeVAT + vatAmount;
 
-      // Fetch the latest signatory
       let signatoryDetails: { name: string; position: string } | undefined = undefined;
       try {
         const signatoriesQuery = query(
@@ -160,7 +157,6 @@ export default function InvoicingPage() {
         console.warn("Could not fetch signatory:", sigError);
       }
 
-      // Fetch the latest reading performer
       let readingPerformerDetails: { name: string; position: string } | undefined = undefined;
       try {
         const readingPerformersQuery = query(
@@ -232,43 +228,37 @@ export default function InvoicingPage() {
     }
 
     try {
-      // Ensure the element is fully visible or rendered for html2canvas if it relies on viewport
-      // For elements with fixed width (like 1122px), this might be less of an issue.
       const canvas = await html2canvas(invoiceElement, { 
-        scale: 2, // Increase scale for better resolution
+        scale: 1, // Using scale 1 for direct pixel mapping if quality is acceptable
         useCORS: true,
-        width: 1122, // Explicitly set capture width
-        windowWidth: 1122 // Ensure html2canvas uses this width for layout
+        width: 1122, 
+        windowWidth: 1122,
+        backgroundColor: '#ffffff' // Ensure a white background for the capture
       });
       const imgData = canvas.toDataURL('image/png');
-
-      // A4 landscape: 297mm width x 210mm height. 1 point = 1/72 inch.
-      // 297mm ~ 11.69 inches. 11.69 * 72 = 841.68 points (width)
-      // 210mm ~ 8.27 inches. 8.27 * 72 = 595.44 points (height)
+      
       const pdf = new jsPDF({
-        orientation: 'landscape', // Changed to landscape
+        orientation: 'landscape',
         unit: 'pt',
-        format: 'a4', // A4 size
+        format: 'a4',
       });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth(); // Approx 841.89 pt for A4 landscape
-      const pdfHeight = pdf.internal.pageSize.getHeight(); // Approx 595.28 pt for A4 landscape
+      const pdfWidth = pdf.internal.pageSize.getWidth(); 
+      const pdfHeight = pdf.internal.pageSize.getHeight(); 
       
       const imgProps = pdf.getImageProperties(imgData);
       const aspectRatio = imgProps.width / imgProps.height;
       
-      const margin = 10; // Reduced margin in points
+      const margin = 5; // Minimal margin to maximize content size
 
       let newImgWidth = pdfWidth - 2 * margin; 
       let newImgHeight = newImgWidth / aspectRatio;
 
-      // If new height is still too large for the page, adjust based on height
       if (newImgHeight > pdfHeight - 2 * margin) {
           newImgHeight = pdfHeight - 2 * margin; 
           newImgWidth = newImgHeight * aspectRatio;
       }
       
-      // Center the image on the PDF page
       const xOffset = (pdfWidth - newImgWidth) / 2;
       const yOffset = (pdfHeight - newImgHeight) / 2;
 
@@ -383,7 +373,7 @@ export default function InvoicingPage() {
                 Export to PDF
               </Button>
             </CardHeader>
-            <CardContent className="p-2 bg-gray-200 overflow-x-auto"> {/* Added bg for contrast and overflow for wide content */}
+            <CardContent className="p-2 bg-muted/30 overflow-x-auto">
               <InvoiceTemplate data={invoiceData} />
             </CardContent>
           </Card>
@@ -392,3 +382,4 @@ export default function InvoicingPage() {
     </main>
   );
 }
+    

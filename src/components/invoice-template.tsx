@@ -10,7 +10,6 @@ interface InvoiceTemplateProps {
 }
 
 export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
-  // Helper to format currency
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-PH', {
       style: 'currency',
@@ -20,18 +19,17 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
     });
   };
 
-  const companyLogoPath = data.companyLogoUrl || "/company-logo.png"; 
+  const companyLogoPath = data.companyLogoUrl || "/company-logo.png";
 
   const renderInvoiceContent = (copyIdentifier?: string) => (
-    <div className="p-6 bg-white text-neutral-900 font-sans text-sm max-w-[550px] w-full border border-neutral-300 rounded-lg shadow-lg break-inside-avoid flex-shrink-0 flex flex-col"> {/* Added flex flex-col for structure */}
-      {/* Header */}
+    <div className="p-6 bg-white text-neutral-900 font-sans text-sm max-w-[550px] w-full border border-neutral-300 rounded-lg shadow-lg break-inside-avoid flex-shrink-0 flex flex-col">
       <header className="flex justify-between items-start pb-4 border-b border-neutral-300 mb-4">
         <div>
-          <Image 
-            src={companyLogoPath} 
+          <Image
+            src={companyLogoPath}
             alt={`${data.companyName || 'Company'} Logo`}
-            width={100} 
-            height={50} 
+            width={100}
+            height={50}
             className="mb-1 object-contain"
             data-ai-hint="company logo"
             onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/100x50.png?text=No+Logo'; }}
@@ -51,7 +49,6 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </header>
 
-      {/* Client Information */}
       <section className="mb-6 grid grid-cols-2 gap-2">
         <div>
           <h3 className="font-semibold text-blue-700 mb-1 text-sm">Bill To:</h3>
@@ -64,7 +61,6 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </section>
 
-      {/* Line Items Table */}
       <section className="mb-6">
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -89,7 +85,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
           </tbody>
         </table>
       </section>
-      
+
       <section className="mb-6 p-2 bg-neutral-50 rounded-md text-[10px] text-neutral-700">
         <h4 className="font-semibold mb-0.5 text-blue-600">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
         <div className="grid grid-cols-2 gap-x-2">
@@ -116,22 +112,21 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </div>
       </section>
 
-      <div className="flex-grow"></div> {/* Spacer to push footer to bottom */}
+      <div className="flex-grow"></div>
 
       {data.paymentInstructions && (
-        <footer className="pt-4 border-t border-neutral-300 text-neutral-700 mt-auto"> {/* mt-auto to push to bottom */}
+        <footer className="pt-4 border-t border-neutral-300 text-neutral-700 mt-auto">
           <h3 className="font-semibold text-blue-700 mb-1 text-sm">Payment Instructions:</h3>
           <p className="text-[10px] whitespace-pre-line">{data.paymentInstructions}</p>
         </footer>
       )}
 
-      {/* Personnel Section */}
       <div className="mt-8 pt-4 border-t border-neutral-300 text-xs">
         <div className="grid grid-cols-2 gap-4">
           {(data.readingPerformerName || data.readingPerformerPosition) && (
             <div>
               <p className="mb-0.5 text-[10px] font-medium text-neutral-700">Readings Performed by:</p>
-              <div className="mt-6 mb-0.5 border-b border-neutral-500 h-3"></div> {/* Signature line */}
+              <div className="mt-6 mb-0.5 border-b border-neutral-500 h-3"></div>
               <p className="mt-0.5 text-[10px] font-semibold text-neutral-800">{data.readingPerformerName || "___________________"}</p>
               <p className="text-[9px] text-neutral-600">{data.readingPerformerPosition || "Position"}</p>
             </div>
@@ -139,7 +134,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
            {(data.signatoryName || data.signatoryPosition) && (
             <div className={(data.readingPerformerName || data.readingPerformerPosition) ? "" : "col-start-1"}>
               <p className="mb-0.5 text-[10px] font-medium text-neutral-700">Prepared by:</p>
-              <div className="mt-6 mb-0.5 border-b border-neutral-500 h-3"></div> {/* Signature line */}
+              <div className="mt-6 mb-0.5 border-b border-neutral-500 h-3"></div>
               <p className="mt-0.5 text-[10px] font-semibold text-neutral-800">{data.signatoryName || "___________________"}</p>
               <p className="text-[9px] text-neutral-600">{data.signatoryPosition || "Position"}</p>
             </div>
@@ -154,12 +149,13 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
   );
 
   return (
-    // Main container for side-by-side invoices, targeting approx 1122px width for html2canvas
-    <div id="invoice-to-export" className="max-w-[1122px] mx-auto flex flex-row justify-center items-start py-4 px-2 gap-3 bg-gray-100"> {/* Added bg for visibility */}
+    <div 
+      id="invoice-to-export" 
+      className="max-w-[1122px] mx-auto flex flex-row justify-center items-start gap-4 bg-white"
+    > {/* Changed bg to white, removed py-4 px-2, increased gap slightly */}
       {renderInvoiceContent("Client's Copy")}
       
-      {/* Vertical Cut Line */}
-      <div className="flex flex-col items-center self-stretch justify-center min-h-full pt-8 pb-8 mx-1">
+      <div className="flex flex-col items-center self-stretch justify-center min-h-full py-8 mx-1"> {/* Added py-8 for cut line height */}
         <div className="w-px border-l-2 border-dashed border-neutral-400 flex-grow"></div>
         <span 
             className="my-2 text-neutral-500 font-mono text-xs" 
@@ -174,3 +170,4 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
     </div>
   );
 }
+    
