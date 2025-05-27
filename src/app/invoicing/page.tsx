@@ -250,11 +250,15 @@ export default function InvoicingPage() {
       
       const aspectRatio = imgProps.width / imgProps.height;
       
-      let newImgWidth = pdfWidth - 20; 
+      // Reduce margins from 20 (10 per side) to 10 (5 per side)
+      const horizontalMargin = 10; 
+      const verticalMargin = 10;
+
+      let newImgWidth = pdfWidth - horizontalMargin; 
       let newImgHeight = newImgWidth / aspectRatio;
 
-      if (newImgHeight > pdfHeight - 20) {
-          newImgHeight = pdfHeight - 20; 
+      if (newImgHeight > pdfHeight - verticalMargin) {
+          newImgHeight = pdfHeight - verticalMargin; 
           newImgWidth = newImgHeight * aspectRatio;
       }
       
