@@ -12,7 +12,9 @@ interface InvoiceTemplateProps {
 export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
   // Helper to format currency
   const formatCurrency = (amount: number) => {
-    return amount.toLocaleString(undefined, {
+    return amount.toLocaleString('en-PH', {
+      style: 'currency',
+      currency: 'PHP',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
@@ -75,8 +77,8 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
               <th className="p-2 border font-medium text-right">Previous Reading (kWh)</th>
               <th className="p-2 border font-medium text-right">Present Reading (kWh)</th>
               <th className="p-2 border font-medium text-right">Consumption (kWh)</th>
-              <th className="p-2 border font-medium text-right">Rate ($/kWh)</th>
-              <th className="p-2 border font-medium text-right">Amount ($)</th>
+              <th className="p-2 border font-medium text-right">Rate (₱/kWh)</th>
+              <th className="p-2 border font-medium text-right">Amount (₱)</th>
             </tr>
           </thead>
           <tbody>
@@ -85,7 +87,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
               <td className="p-2 border text-right">{data.clientPreviousReading.toLocaleString()}</td>
               <td className="p-2 border text-right">{data.clientPresentReading.toLocaleString()}</td>
               <td className="p-2 border text-right font-medium">{data.clientTotalKwh.toLocaleString()}</td>
-              <td className="p-2 border text-right">{data.basicRate.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 4})}</td>
+              <td className="p-2 border text-right">₱{data.basicRate.toFixed(4)}</td>
               <td className="p-2 border text-right">{formatCurrency(data.clientTotalKwh * data.basicRate)}</td>
             </tr>
           </tbody>
@@ -96,7 +98,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
       <section className="mb-8 p-3 bg-muted/30 rounded-md text-xs">
         <h4 className="font-semibold mb-1 text-primary/80">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
         <div className="grid grid-cols-2 gap-x-4">
-            <p>Total Mother Bill Amount: ${formatCurrency(data.motherBillTotalAmount)}</p>
+            <p>Total Mother Bill Amount: {formatCurrency(data.motherBillTotalAmount)}</p>
             <p>Total Mother Bill Consumption: {data.motherBillTotalConsumption.toLocaleString()} kWh</p>
         </div>
       </section>
@@ -107,16 +109,16 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         <div className="w-full md:w-1/2 lg:w-1/3 space-y-1">
           <div className="flex justify-between">
             <span>Subtotal:</span>
-            <span>${formatCurrency(data.amountBeforeVAT)}</span>
+            <span>{formatCurrency(data.amountBeforeVAT)}</span>
           </div>
           <div className="flex justify-between">
             <span>VAT (12%):</span>
-            <span>${formatCurrency(data.vatAmount)}</span>
+            <span>{formatCurrency(data.vatAmount)}</span>
           </div>
           <hr className="my-1 border-border"/>
           <div className="flex justify-between font-bold text-lg text-primary">
             <span>Total Amount Due:</span>
-            <span>${formatCurrency(data.totalAmountDue)}</span>
+            <span>{formatCurrency(data.totalAmountDue)}</span>
           </div>
         </div>
       </section>

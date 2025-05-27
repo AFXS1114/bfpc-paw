@@ -282,7 +282,7 @@ export default function PowerMotherBillPage() {
                   name="totalAmountBilled"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Amount Billed ($)</FormLabel>
+                      <FormLabel>Total Amount Billed (₱)</FormLabel>
                       <FormControl>
                         <Input type="number" step="0.01" placeholder="e.g., 500.75" {...field} />
                       </FormControl>
@@ -345,7 +345,7 @@ export default function PowerMotherBillPage() {
                     <TableHead className="text-right">Past ({CONSUMPTION_UNIT})</TableHead>
                     <TableHead className="text-right">Present ({CONSUMPTION_UNIT})</TableHead>
                     <TableHead className="text-right">Total ({CONSUMPTION_UNIT})</TableHead>
-                    <TableHead className="text-right">Amount ($)</TableHead>
+                    <TableHead className="text-right">Amount (₱)</TableHead>
                     <TableHead>Notes</TableHead>
                     <TableHead>Recorded On</TableHead>
                     <TableHead className="text-center">Actions</TableHead>
@@ -358,7 +358,9 @@ export default function PowerMotherBillPage() {
                       <TableCell className="text-right">{bill.pastReading.toLocaleString()}</TableCell>
                       <TableCell className="text-right">{bill.presentReading.toLocaleString()}</TableCell>
                       <TableCell className="text-right font-semibold">{bill.totalConsumption.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{bill.totalAmountBilled.toLocaleString(undefined, { style: 'currency', currency: 'USD' })}</TableCell>
+                      <TableCell className="text-right">
+                        {bill.totalAmountBilled.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
                       <TableCell className="max-w-[150px] truncate" title={bill.notes}>{bill.notes || "-"}</TableCell>
                       <TableCell>{bill.createdAt ? format(new Date(bill.createdAt), "MMM dd, yyyy") : 'N/A'}</TableCell>
                       <TableCell className="text-center">

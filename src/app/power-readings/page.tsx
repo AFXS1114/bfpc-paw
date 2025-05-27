@@ -103,7 +103,7 @@ export default function PowerReadingsPage() {
     setIsLoadingReadings(true);
     let readingsQueryConstraints: QueryConstraint[] = [];
 
-    if (filterClientId) {
+    if (filterClientId && filterClientId !== ALL_CLIENTS_SELECT_ITEM_VALUE) {
       readingsQueryConstraints.push(where("clientId", "==", filterClientId));
     }
     if (filterDateBilled) {
@@ -114,10 +114,10 @@ export default function PowerReadingsPage() {
       readingsQueryConstraints.push(where("dateBilled", ">=", Timestamp.fromDate(startOfDay)));
       readingsQueryConstraints.push(where("dateBilled", "<=", Timestamp.fromDate(endOfDay)));
     }
-    if (filterBillingMonth) {
+    if (filterBillingMonth && filterBillingMonth !== ANY_MONTH_SELECT_ITEM_VALUE) {
       readingsQueryConstraints.push(where("billingMonth", "==", filterBillingMonth));
     }
-    if (filterBillingYear) {
+    if (filterBillingYear && filterBillingYear !== ANY_YEAR_SELECT_ITEM_VALUE) {
       readingsQueryConstraints.push(where("billingYear", "==", parseInt(filterBillingYear, 10)));
     }
 
@@ -146,6 +146,7 @@ export default function PowerReadingsPage() {
   const handleGenerateInvoiceClick = async (reading: PowerReadingDocument) => {
     if (!reading.id) return;
     setGeneratingInvoiceId(reading.id);
+    setInvoiceData(null); 
     try {
       const motherBillQuery = query(
         collection(db, "mother-bills"),
@@ -184,12 +185,15 @@ export default function PowerReadingsPage() {
       const vatAmount = amountBeforeVAT * 0.12;
       const totalAmountDue = amountBeforeVAT + vatAmount;
 
+      // Construct invoice data
+      const currentDate = new Date();
       setInvoiceData({
         clientName: reading.clientName,
         stallNo: reading.stallNo,
-        billingPeriod: `${reading.billingMonth} ${reading.billingYear}`,
-        clientPresentReading: reading.presentReading,
+        billingMonth: reading.billingMonth,
+        billingYear: reading.billingYear,
         clientPreviousReading: reading.previousReading,
+        clientPresentReading: reading.presentReading,
         clientTotalKwh: reading.totalKwh,
         motherBillTotalAmount: motherBill.totalAmountBilled,
         motherBillTotalConsumption: motherBill.totalConsumption,
@@ -197,6 +201,14 @@ export default function PowerReadingsPage() {
         amountBeforeVAT: amountBeforeVAT,
         vatAmount: vatAmount,
         totalAmountDue: totalAmountDue,
+        // Fields required by the full InvoiceData type for the dedicated invoice page,
+        // some can be placeholders or simplified for this modal.
+        invoiceNumber: `${reading.stallNo.replace(/[^A-Z0-9]/ig, '')}-${reading.billingYear}${MONTHS.indexOf(reading.billingMonth).toString().padStart(2, '0')}-MODAL`,
+        invoiceDate: format(currentDate, "MMMM dd, yyyy"),
+        dueDate: format(currentDate, "MMMM dd, yyyy"), // Example: Due today for modal
+        companyName: "BFPC Commercial Complex", 
+        companyAddressLine1: "123 Market Street", 
+        companyAddressLine2: "Cityville, ST 12345",
       });
       setIsInvoiceModalOpen(true);
 
@@ -224,7 +236,10 @@ export default function PowerReadingsPage() {
   };
   
   const hasActiveFilters = useMemo(() => {
-    return !!filterClientId || !!filterDateBilled || !!filterBillingMonth || !!filterBillingYear;
+    return (filterClientId && filterClientId !== ALL_CLIENTS_SELECT_ITEM_VALUE) || 
+           !!filterDateBilled || 
+           (filterBillingMonth && filterBillingMonth !== ANY_MONTH_SELECT_ITEM_VALUE) || 
+           (filterBillingYear && filterBillingYear !== ANY_YEAR_SELECT_ITEM_VALUE);
   }, [filterClientId, filterDateBilled, filterBillingMonth, filterBillingYear]);
 
 
@@ -247,10 +262,8 @@ export default function PowerReadingsPage() {
               <div>
                 <Label htmlFor="filter-client">Client Name</Label>
                 <Select
-                  value={filterClientId}
-                  onValueChange={(selectedValue) => {
-                    setFilterClientId(selectedValue === ALL_CLIENTS_SELECT_ITEM_VALUE ? "" : selectedValue);
-                  }}
+                  value={filterClientId || ALL_CLIENTS_SELECT_ITEM_VALUE}
+                  onValueChange={setFilterClientId}
                   disabled={isLoadingClients}
                 >
                   <SelectTrigger id="filter-client" className="mt-1">
@@ -294,10 +307,8 @@ export default function PowerReadingsPage() {
               <div>
                 <Label htmlFor="filter-billing-month">Billing Month</Label>
                 <Select 
-                  value={filterBillingMonth}
-                  onValueChange={(selectedValue) => {
-                    setFilterBillingMonth(selectedValue === ANY_MONTH_SELECT_ITEM_VALUE ? "" : selectedValue);
-                  }}
+                  value={filterBillingMonth || ANY_MONTH_SELECT_ITEM_VALUE}
+                  onValueChange={setFilterBillingMonth}
                 >
                   <SelectTrigger id="filter-billing-month" className="mt-1">
                     <SelectValue placeholder="Any Month" />
@@ -313,10 +324,8 @@ export default function PowerReadingsPage() {
               <div>
                 <Label htmlFor="filter-billing-year">Billing Year</Label>
                  <Select 
-                    value={filterBillingYear} 
-                    onValueChange={(selectedValue) => {
-                      setFilterBillingYear(selectedValue === ANY_YEAR_SELECT_ITEM_VALUE ? "" : selectedValue);
-                    }}
+                    value={filterBillingYear || ANY_YEAR_SELECT_ITEM_VALUE} 
+                    onValueChange={setFilterBillingYear}
                   >
                   <SelectTrigger id="filter-billing-year" className="mt-1">
                     <SelectValue placeholder="Any Year" />
@@ -419,7 +428,7 @@ export default function PowerReadingsPage() {
             <DialogHeader>
               <DialogTitle className="flex items-center"><FileText className="mr-2 h-5 w-5 text-primary"/>Invoice Details</DialogTitle>
               <DialogDescription>
-                Billing Period: {invoiceData.billingPeriod}
+                Billing Period: {invoiceData.billingMonth} {invoiceData.billingYear}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4 text-sm">
@@ -438,20 +447,20 @@ export default function PowerReadingsPage() {
               
               <div className="border-b pb-2">
                 <h4 className="font-semibold text-base mb-1">Rate Calculation (based on Mother Bill)</h4>
-                <p>Mother Bill Total Amount: ${invoiceData.motherBillTotalAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <p>Mother Bill Total Amount: {invoiceData.motherBillTotalAmount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 <p>Mother Bill Total Consumption: {invoiceData.motherBillTotalConsumption.toLocaleString()} kWh</p>
-                <p><strong>Basic Rate:</strong> ${invoiceData.basicRate.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 4})} / kWh</p>
+                <p><strong>Basic Rate:</strong> ₱{invoiceData.basicRate.toFixed(4)} / kWh</p>
               </div>
 
               <div>
                 <h4 className="font-semibold text-base mb-1">Amount Due</h4>
                 <div className="grid grid-cols-2 gap-x-2">
                   <span>Subtotal:</span>
-                  <span className="text-right">${invoiceData.amountBeforeVAT.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  <span className="text-right">{invoiceData.amountBeforeVAT.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   <span>VAT (12%):</span>
-                  <span className="text-right">${invoiceData.vatAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  <span className="text-right">{invoiceData.vatAmount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   <strong className="text-lg">Total Amount Due:</strong>
-                  <strong className="text-lg text-right">${invoiceData.totalAmountDue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                  <strong className="text-lg text-right">{invoiceData.totalAmountDue.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                 </div>
               </div>
             </div>
@@ -465,4 +474,3 @@ export default function PowerReadingsPage() {
     </main>
   );
 }
-
