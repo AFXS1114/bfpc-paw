@@ -49,8 +49,9 @@ import { format, parseISO } from "date-fns";
 import { Calendar as CalendarIcon, Edit, Search, XCircle, FileText, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, query, where, orderBy, onSnapshot, Timestamp, DocumentData, QueryConstraint, getDocs, limit } from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot, Timestamp, DocumentData, QueryConstraint, getDocs, limit, serverTimestamp } from "firebase/firestore";
 import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData } from "@/types";
+import { EditPowerReadingModal } from "@/components/edit-power-reading-modal"; // Import the new modal
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -78,6 +79,10 @@ export default function PowerReadingsPage() {
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
   const [generatingInvoiceId, setGeneratingInvoiceId] = useState<string | null>(null);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingReading, setEditingReading] = useState<PowerReadingDocument | null>(null);
+
 
   // Fetch clients for the filter dropdown
   useEffect(() => {
@@ -121,7 +126,12 @@ export default function PowerReadingsPage() {
       readingsQueryConstraints.push(where("billingYear", "==", parseInt(filterBillingYear, 10)));
     }
 
-    const finalQuery = query(collection(db, "power-readings"), ...readingsQueryConstraints, orderBy("dateBilled", "desc"));
+    // Default sort order
+    let finalQuery = query(collection(db, "power-readings"), ...readingsQueryConstraints, orderBy("createdAt", "desc"));
+    if (readingsQueryConstraints.some(c => (c as any)._field.segments.join('') === 'dateBilled')) { // Check if dateBilled filter is active
+      finalQuery = query(collection(db, "power-readings"), ...readingsQueryConstraints, orderBy("dateBilled", "desc"));
+    }
+
 
     const unsubscribe = onSnapshot(finalQuery, (querySnapshot) => {
       const readingsData = querySnapshot.docs.map(doc => {
@@ -130,6 +140,7 @@ export default function PowerReadingsPage() {
           id: doc.id,
           ...data,
           dateBilled: (data.dateBilled as Timestamp).toDate(),
+          createdAt: (data.createdAt as Timestamp)?.toDate(), // Handle optional createdAt
         } as PowerReadingDocument;
       });
       setPowerReadings(readingsData);
@@ -202,12 +213,10 @@ export default function PowerReadingsPage() {
         totalAmountDue: totalAmountDue,
         invoiceNumber: `${reading.stallNo.replace(/[^A-Z0-9]/ig, '')}-${reading.billingYear}${MONTHS.indexOf(reading.billingMonth).toString().padStart(2, '0')}-MODAL`,
         invoiceDate: format(currentDate, "MMMM dd, yyyy"),
-        // dueDate: format(currentDate, "MMMM dd, yyyy"), // Example: Due today for modal. // Removed as per user request
         companyName: "BULAN FISH PORT COMPLEX", 
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
         companyAddressLine2: "",
         paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office."
-        // companyLogoUrl can be added if needed for modal
       });
       setIsInvoiceModalOpen(true);
 
@@ -223,8 +232,9 @@ export default function PowerReadingsPage() {
     }
   };
 
-  const handleEdit = (readingId: string) => {
-    toast({ title: "Edit Clicked", description: `Would edit reading: ${readingId}` });
+  const handleEditClick = (reading: PowerReadingDocument) => {
+    setEditingReading(reading);
+    setIsEditModalOpen(true);
   };
 
   const clearFilters = () => {
@@ -406,7 +416,7 @@ export default function PowerReadingsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => reading.id && handleEdit(reading.id)}
+                          onClick={() => reading.id && handleEditClick(reading)}
                           disabled={!reading.id}
                         >
                           <Edit className="mr-1 h-3 w-3" /> Edit
@@ -469,6 +479,15 @@ export default function PowerReadingsPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {editingReading && (
+        <EditPowerReadingModal
+          isOpen={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          reading={editingReading}
+        />
+      )}
     </main>
   );
 }
+
