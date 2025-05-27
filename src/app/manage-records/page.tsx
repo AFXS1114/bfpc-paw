@@ -4,7 +4,7 @@
 import type { ChangeEvent } from 'react';
 import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button"; // Added buttonVariants import
 import {
   Card,
   CardContent,
@@ -334,5 +334,3 @@ export default function ManageRecordsPage() {
     </main>
   );
 }
-
-    
