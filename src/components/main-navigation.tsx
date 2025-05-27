@@ -4,35 +4,44 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Settings, Droplet, Zap, BarChart3, LayoutDashboard, Users, ListTree, ReceiptText, FileText as InvoiceIcon } from "lucide-react";
+import { LayoutDashboard, Settings, Droplet, Zap, BarChart3, Users, ListTree, ReceiptText, FileText as InvoiceIcon } from "lucide-react";
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
   SidebarMenuButton,
-  SidebarSeparator, // Import SidebarSeparator
+  SidebarSeparator,
   useSidebar 
 } from "@/components/ui/sidebar";
 
 const navItems = [
+  // Overview
   { href: "/", label: "Dashboard", icon: LayoutDashboard, section: "Overview" },
   { type: "separator", section: "Overview_End"},
-  { href: "/mother-bill", label: "Mother Bill (Power)", icon: ReceiptText, section: "Mother Bills" }, 
-  { href: "/mother-bill-water", label: "Mother Bill (Water)", icon: Droplet, section: "Mother Bills" }, 
-  { type: "separator", section: "Mother Bills_End"},
-  { href: "/clients", label: "Clients", icon: Users, section: "Client Management" },
-  { href: "/power", label: "Power Entry", icon: Zap, section: "Client Management" },
-  { href: "/power-readings", label: "Power Readings", icon: ListTree, section: "Client Management" },
-  { href: "/water", label: "Water", icon: Droplet, section: "Client Management" }, // This might be for individual tenant water entry later
-  { href: "/invoicing", label: "Invoicing", icon: InvoiceIcon, section: "Client Management" },
-  { type: "separator", section: "Client Management_End"},
-  { href: "/billing", label: "Billing Summary", icon: BarChart3, section: "Reports & Summaries" }, 
-  { type: "separator", section: "Reports & Summaries_End"},
+
+  // Power Management
+  { href: "/mother-bill", label: "Mother Bill (Power)", icon: ReceiptText, section: "Power Management" }, 
+  { href: "/power", label: "Power Entry", icon: Zap, section: "Power Management" },
+  { href: "/power-readings", label: "Power Readings", icon: ListTree, section: "Power Management" },
+  { type: "separator", section: "Power Management_End"},
+
+  // Water Management
+  { href: "/mother-bill-water", label: "Mother Bill (Water)", icon: Droplet, section: "Water Management" }, 
+  { href: "/water", label: "Water", icon: Droplet, section: "Water Management" }, 
+  { type: "separator", section: "Water Management_End"},
+  
+  // Client & Financials
+  { href: "/clients", label: "Clients", icon: Users, section: "Client & Financials" },
+  { href: "/invoicing", label: "Invoicing", icon: InvoiceIcon, section: "Client & Financials" },
+  { href: "/billing", label: "Billing Summary", icon: BarChart3, section: "Client & Financials" }, 
+  { type: "separator", section: "Client & Financials_End"},
+
+  // Application
   { href: "/settings", label: "Settings", icon: Settings, section: "Application" },
 ];
 
 export function MainNavigation() {
   const pathname = usePathname();
-  const { open } = useSidebar(); // To adjust tooltip behavior based on sidebar state
+  const { open } = useSidebar(); 
 
   return (
     <SidebarMenu>
@@ -50,7 +59,7 @@ export function MainNavigation() {
                 children: item.label,
                 side: "right",
                 align: "center",
-                hidden: open, // Only show tooltip when sidebar is collapsed (not open)
+                hidden: open, 
               }}
             >
               <Link href={item.href}>
