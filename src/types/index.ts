@@ -95,7 +95,7 @@ export interface MotherBillEntry {
   billingYear: number;
   pastReading: number;
   presentReading: number;
-  totalConsumption: number; // Renamed from totalKwh to be generic
+  totalConsumption: number; 
   totalAmountBilled: number;
   notes?: string;
   createdAt: FieldValue | Timestamp;
@@ -138,14 +138,17 @@ export interface InvoiceData {
   // New fields for dedicated invoice
   invoiceNumber: string;
   invoiceDate: string; // Formatted date string
-  // dueDate?: string; // Removed
 
   // Company details
   companyName: string;
   companyAddressLine1: string;
   companyAddressLine2?: string;
-  companyLogoUrl?: string; // URL to a company logo
+  companyLogoUrl?: string; 
   paymentInstructions?: string;
+
+  // Signatory Details
+  signatoryName?: string;
+  signatoryPosition?: string;
 }
 
 // App User Management
@@ -159,7 +162,7 @@ export const APP_USER_ROLE_LABELS: Record<AppUserRole, string> = {
 
 
 export interface AppUserEntry {
-  id?: string; // Firestore will generate this
+  id?: string; 
   name: string;
   role: AppUserRole;
   email: string;
@@ -173,5 +176,20 @@ export interface AppUserDocument extends Omit<AppUserEntry, 'id' | 'createdAt'> 
   role: AppUserRole;
   email: string;
   passcode: string;
+  createdAt: Date;
+}
+
+// Signatory Management
+export interface SignatoryEntry {
+  id?: string; // Firestore will generate this
+  name: string;
+  position: string;
+  createdAt: FieldValue | Timestamp;
+}
+
+export interface SignatoryDocument extends Omit<SignatoryEntry, 'id' | 'createdAt'> {
+  id: string;
+  name: string;
+  position: string;
   createdAt: Date;
 }

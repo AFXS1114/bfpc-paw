@@ -7,14 +7,16 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, DatabaseBackup, Loader2, Users, UserPlus } from "lucide-react";
+import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3 } from "lucide-react";
 import { importHistoricalMotherBills } from "@/lib/import-mother-bills";
 import { AddUserModal } from "@/components/add-user-modal";
+import { AddSignatoryModal } from "@/components/add-signatory-modal";
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const [isImporting, setIsImporting] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [isAddSignatoryModalOpen, setIsAddSignatoryModalOpen] = useState(false);
 
   const handleImportData = async () => {
     setIsImporting(true);
@@ -102,6 +104,26 @@ export default function SettingsPage() {
 
         <Card className="shadow-lg">
           <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Edit3 className="h-6 w-6 text-primary" />
+              Signatory Management
+            </CardTitle>
+            <CardDescription>Manage signatories for invoices.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={() => setIsAddSignatoryModalOpen(true)}>
+              <UserPlus className="mr-2 h-4 w-4" /> Add Signatory
+            </Button>
+            {/* Placeholder for signatory list/table */}
+            <p className="text-sm text-muted-foreground mt-2">
+              Signatory list and editing capabilities will be added here in the future.
+            </p>
+          </CardContent>
+        </Card>
+
+
+        <Card className="shadow-lg">
+          <CardHeader>
             <CardTitle>Account Settings</CardTitle>
             <CardDescription>Manage your account details (placeholder).</CardDescription>
           </CardHeader>
@@ -111,6 +133,7 @@ export default function SettingsPage() {
         </Card>
       </div>
       <AddUserModal isOpen={isAddUserModalOpen} onOpenChange={setIsAddUserModalOpen} />
+      <AddSignatoryModal isOpen={isAddSignatoryModalOpen} onOpenChange={setIsAddSignatoryModalOpen} />
     </main>
   );
 }

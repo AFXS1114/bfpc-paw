@@ -20,10 +20,10 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
     });
   };
 
-  const companyLogoPath = "/company-logo.png"; // Assumes logo is named company-logo.png in the public folder
+  const companyLogoPath = data.companyLogoUrl || "/company-logo.png"; 
 
   const renderInvoiceContent = (copyIdentifier?: string) => (
-    <div className="p-8 bg-white text-neutral-900 font-sans text-sm max-w-4xl mx-auto border rounded-lg shadow-lg mb-6 break-inside-avoid">
+    <div className="p-8 bg-white text-neutral-900 font-sans text-sm max-w-4xl mx-auto border border-neutral-300 rounded-lg shadow-lg mb-6 break-inside-avoid">
       {/* Header */}
       <header className="flex justify-between items-start pb-6 border-b border-neutral-300 mb-6">
         <div>
@@ -36,12 +36,12 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             data-ai-hint="company logo"
             onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/120x60.png?text=No+Logo'; }}
           />
-          <h1 className="text-2xl font-bold text-primary">{data.companyName}</h1>
+          <h1 className="text-2xl font-bold text-blue-700">{data.companyName}</h1> {/* Adjusted color for visibility on white */}
           <p>{data.companyAddressLine1}</p>
           {data.companyAddressLine2 && <p>{data.companyAddressLine2}</p>}
         </div>
         <div className="text-right">
-          <h2 className="text-3xl font-semibold text-primary/90 mb-1">INVOICE {copyIdentifier && <span className="text-xs block normal-case">({copyIdentifier})</span>}</h2>
+          <h2 className="text-3xl font-semibold text-blue-600 mb-1">INVOICE {copyIdentifier && <span className="text-xs block normal-case">({copyIdentifier})</span>}</h2>
           <p className="text-base">
             <span className="font-medium">Invoice #:</span> {data.invoiceNumber}
           </p>
@@ -54,12 +54,12 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
       {/* Client Information */}
       <section className="mb-8 grid grid-cols-2 gap-4">
         <div>
-          <h3 className="font-semibold text-primary mb-1">Bill To:</h3>
+          <h3 className="font-semibold text-blue-700 mb-1">Bill To:</h3>
           <p className="font-medium">{data.clientName}</p>
           <p>Stall No: {data.stallNo}</p>
         </div>
         <div className="text-right">
-           <h3 className="font-semibold text-primary mb-1">Billing Period:</h3>
+           <h3 className="font-semibold text-blue-700 mb-1">Billing Period:</h3>
            <p>{data.billingMonth} {data.billingYear}</p>
         </div>
       </section>
@@ -68,7 +68,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
       <section className="mb-8">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-neutral-100 text-left">
+            <tr className="bg-neutral-100 text-left text-neutral-800">
               <th className="p-2 border border-neutral-300 font-medium">Description</th>
               <th className="p-2 border border-neutral-300 font-medium text-right">Previous Reading (kWh)</th>
               <th className="p-2 border border-neutral-300 font-medium text-right">Present Reading (kWh)</th>
@@ -78,7 +78,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             </tr>
           </thead>
           <tbody>
-            <tr>
+            <tr className="text-neutral-700">
               <td className="p-2 border border-neutral-300">Power Consumption</td>
               <td className="p-2 border border-neutral-300 text-right">{data.clientPreviousReading.toLocaleString()}</td>
               <td className="p-2 border border-neutral-300 text-right">{data.clientPresentReading.toLocaleString()}</td>
@@ -90,15 +90,15 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
         </table>
       </section>
       
-      <section className="mb-8 p-3 bg-neutral-50 rounded-md text-xs">
-        <h4 className="font-semibold mb-1 text-primary/80">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
+      <section className="mb-8 p-3 bg-neutral-50 rounded-md text-xs text-neutral-700">
+        <h4 className="font-semibold mb-1 text-blue-600">Rate Calculation Basis (Mother Bill {data.billingMonth} {data.billingYear}):</h4>
         <div className="grid grid-cols-2 gap-x-4">
             <p>Total Mother Bill Amount: {formatCurrency(data.motherBillTotalAmount)}</p>
             <p>Total Mother Bill Consumption: {data.motherBillTotalConsumption.toLocaleString()} kWh</p>
         </div>
       </section>
 
-      <section className="flex justify-end mb-8">
+      <section className="flex justify-end mb-8 text-neutral-800">
         <div className="w-full md:w-1/2 lg:w-1/3 space-y-1">
           <div className="flex justify-between">
             <span>Subtotal:</span>
@@ -109,7 +109,7 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
             <span>{formatCurrency(data.vatAmount)}</span>
           </div>
           <hr className="my-1 border-neutral-300"/>
-          <div className="flex justify-between font-bold text-lg text-primary">
+          <div className="flex justify-between font-bold text-lg text-blue-700">
             <span>Total Amount Due:</span>
             <span>{formatCurrency(data.totalAmountDue)}</span>
           </div>
@@ -117,11 +117,29 @@ export function InvoiceTemplate({ data }: InvoiceTemplateProps) {
       </section>
 
       {data.paymentInstructions && (
-        <footer className="pt-6 border-t border-neutral-300">
-          <h3 className="font-semibold text-primary mb-1">Payment Instructions:</h3>
+        <footer className="pt-6 border-t border-neutral-300 text-neutral-700">
+          <h3 className="font-semibold text-blue-700 mb-1">Payment Instructions:</h3>
           <p className="text-sm whitespace-pre-line">{data.paymentInstructions}</p>
         </footer>
       )}
+
+      {/* Signatory Section */}
+      {(data.signatoryName || data.signatoryPosition) && (
+        <div className="mt-12 pt-8 border-t border-neutral-300">
+          <div className="grid grid-cols-2 gap-8">
+            <div>
+              <p className="mb-1 text-sm font-medium text-neutral-700">Prepared by:</p>
+              <div className="mt-10 mb-1 border-b border-neutral-500 h-4"></div> {/* Signature line */}
+              <p className="mt-1 text-sm font-semibold text-neutral-800">{data.signatoryName || "_________________________"}</p>
+              <p className="text-xs text-neutral-600">{data.signatoryPosition || "Position"}</p>
+            </div>
+            <div>
+              {/* Placeholder for another signatory if needed in the future */}
+            </div>
+          </div>
+        </div>
+      )}
+
        <div className="mt-8 text-center text-xs text-neutral-500">
         <p>Thank you for your business!</p>
       </div>

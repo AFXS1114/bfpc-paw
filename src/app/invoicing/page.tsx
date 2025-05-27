@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData } from "@/types";
+import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument } from "@/types";
 import { FileText, Search, Loader2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { InvoiceTemplate } from "@/components/invoice-template";
@@ -143,6 +143,24 @@ export default function InvoicingPage() {
       const vatAmount = amountBeforeVAT * 0.12; // 12% VAT
       const totalAmountDue = amountBeforeVAT + vatAmount;
 
+      // Fetch the latest signatory
+      let signatoryDetails: { name: string; position: string } | undefined = undefined;
+      try {
+        const signatoriesQuery = query(
+          collection(db, "signatories"),
+          orderBy("createdAt", "desc"),
+          limit(1)
+        );
+        const signatorySnapshot = await getDocs(signatoriesQuery);
+        if (!signatorySnapshot.empty) {
+          const signatoryDoc = signatorySnapshot.docs[0].data() as SignatoryDocument;
+          signatoryDetails = { name: signatoryDoc.name, position: signatoryDoc.position };
+        }
+      } catch (sigError) {
+        console.warn("Could not fetch signatory:", sigError);
+        // Non-critical error, invoice can still be generated
+      }
+
       const currentDate = new Date();
       const generatedInvoiceData: InvoiceData = {
         clientName: client.clientName,
@@ -162,9 +180,11 @@ export default function InvoicingPage() {
         invoiceDate: format(currentDate, "MMMM dd, yyyy"),
         companyName: "BULAN FISH PORT COMPLEX",
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
-        companyAddressLine2: "", // Address line 2 is now empty
+        companyAddressLine2: "", 
         companyLogoUrl: "/company-logo.png", 
-        paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office."
+        paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office.",
+        signatoryName: signatoryDetails?.name,
+        signatoryPosition: signatoryDetails?.position,
       };
       setInvoiceData(generatedInvoiceData);
 
@@ -195,8 +215,8 @@ export default function InvoicingPage() {
 
     try {
       const canvas = await html2canvas(invoiceElement, { 
-        scale: 2, // Higher scale for better quality
-        useCORS: true // If using external images like logo
+        scale: 2, 
+        useCORS: true 
       });
       const imgData = canvas.toDataURL('image/png');
 
@@ -210,21 +230,18 @@ export default function InvoicingPage() {
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const imgProps = pdf.getImageProperties(imgData);
       
-      // Calculate the aspect ratio
       const aspectRatio = imgProps.width / imgProps.height;
       
-      let newImgWidth = pdfWidth - 20; // Subtract some margin
+      let newImgWidth = pdfWidth - 20; 
       let newImgHeight = newImgWidth / aspectRatio;
 
-      // If image height is still greater than PDF height after scaling to width, then scale to height
       if (newImgHeight > pdfHeight - 20) {
-          newImgHeight = pdfHeight - 20; // Subtract some margin
+          newImgHeight = pdfHeight - 20; 
           newImgWidth = newImgHeight * aspectRatio;
       }
       
       const xOffset = (pdfWidth - newImgWidth) / 2;
       const yOffset = (pdfHeight - newImgHeight) / 2;
-
 
       pdf.addImage(imgData, 'PNG', xOffset, yOffset, newImgWidth, newImgHeight);
       pdf.save(`Invoice-${invoiceData.invoiceNumber}.pdf`);
@@ -346,5 +363,3 @@ export default function InvoicingPage() {
     </main>
   );
 }
-
-    
