@@ -7,12 +7,14 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, DatabaseBackup, Loader2 } from "lucide-react";
+import { Palette, DatabaseBackup, Loader2, Users, UserPlus } from "lucide-react";
 import { importHistoricalMotherBills } from "@/lib/import-mother-bills";
+import { AddUserModal } from "@/components/add-user-modal";
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const [isImporting, setIsImporting] = useState(false);
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
 
   const handleImportData = async () => {
     setIsImporting(true);
@@ -81,6 +83,25 @@ export default function SettingsPage() {
 
         <Card className="shadow-lg">
           <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-6 w-6 text-primary" />
+              User Management
+            </CardTitle>
+            <CardDescription>Manage application users.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={() => setIsAddUserModalOpen(true)}>
+              <UserPlus className="mr-2 h-4 w-4" /> Add App User
+            </Button>
+            {/* Placeholder for user list/table */}
+            <p className="text-sm text-muted-foreground mt-2">
+              App user list and editing capabilities will be added here in the future.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg">
+          <CardHeader>
             <CardTitle>Account Settings</CardTitle>
             <CardDescription>Manage your account details (placeholder).</CardDescription>
           </CardHeader>
@@ -89,6 +110,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+      <AddUserModal isOpen={isAddUserModalOpen} onOpenChange={setIsAddUserModalOpen} />
     </main>
   );
 }

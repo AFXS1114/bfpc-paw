@@ -72,7 +72,7 @@ export interface PowerReadingEntry {
 
 export interface PowerReadingDocument extends Omit<PowerReadingEntry, 'id' | 'dateBilled' | 'createdAt'> {
   id: string;
-  dateBilled: Date; 
+  dateBilled: Date;
   createdAt?: Date;  // Optional as it might not be set on old data or if serverTimestamp is used
   clientId: string;
   clientName: string;
@@ -89,16 +89,16 @@ export interface PowerReadingDocument extends Omit<PowerReadingEntry, 'id' | 'da
 export type UtilityType = 'power' | 'water';
 
 export interface MotherBillEntry {
-  id?: string; 
+  id?: string;
   utilityType: UtilityType;
-  billingMonth: string; 
+  billingMonth: string;
   billingYear: number;
-  pastReading: number; 
-  presentReading: number; 
-  totalConsumption: number; 
-  totalAmountBilled: number; 
+  pastReading: number;
+  presentReading: number;
+  totalConsumption: number;
+  totalAmountBilled: number;
   notes?: string;
-  createdAt: FieldValue | Timestamp; 
+  createdAt: FieldValue | Timestamp;
 }
 
 export interface MotherBillDocument extends Omit<MotherBillEntry, 'id' | 'createdAt'> {
@@ -111,7 +111,7 @@ export interface MotherBillDocument extends Omit<MotherBillEntry, 'id' | 'create
     totalConsumption: number;
     totalAmountBilled: number;
     notes?: string;
-    createdAt: Date; 
+    createdAt: Date;
 }
 
 // For invoice generation modal and dedicated invoicing page
@@ -138,14 +138,39 @@ export interface InvoiceData {
   // New fields for dedicated invoice
   invoiceNumber: string;
   invoiceDate: string; // Formatted date string
-  dueDate?: string; // Formatted date string - now optional
-  
+
   // Company details
-  companyName: string; 
+  companyName: string;
   companyAddressLine1: string;
-  companyAddressLine2?: string; // Made optional
+  companyAddressLine2?: string;
   companyLogoUrl?: string; // URL to a company logo
   paymentInstructions?: string;
 }
 
-    
+// App User Management
+export type AppUserRole = 'system-admin' | 'billing-officer';
+
+export const APP_USER_ROLES: AppUserRole[] = ['system-admin', 'billing-officer'];
+export const APP_USER_ROLE_LABELS: Record<AppUserRole, string> = {
+  'system-admin': 'System Administrator',
+  'billing-officer': 'Billing Officer',
+};
+
+
+export interface AppUserEntry {
+  id?: string; // Firestore will generate this
+  name: string;
+  role: AppUserRole;
+  email: string;
+  passcode: string; // Stored as entered. Renewal logic is more complex and out of scope for this change.
+  createdAt: FieldValue | Timestamp;
+}
+
+export interface AppUserDocument extends Omit<AppUserEntry, 'id' | 'createdAt'> {
+  id: string;
+  name: string;
+  role: AppUserRole;
+  email: string;
+  passcode: string;
+  createdAt: Date;
+}
