@@ -35,27 +35,33 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
-import { Calendar as CalendarIcon, Edit, Search, XCircle } from "lucide-react";
+import { Calendar as CalendarIcon, Edit, Search, XCircle, FileText, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, query, where, orderBy, onSnapshot, Timestamp, DocumentData, QueryConstraint } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument } from "@/types";
+import { collection, query, where, orderBy, onSnapshot, Timestamp, DocumentData, QueryConstraint, getDocs, limit } from "firebase/firestore";
+import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData } from "@/types";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
 const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i); // Last 5 years and next 5 years
+const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
 
-// Define unique non-empty values for "all" select items
 const ALL_CLIENTS_SELECT_ITEM_VALUE = "__all_clients__";
 const ANY_MONTH_SELECT_ITEM_VALUE = "__any_month__";
 const ANY_YEAR_SELECT_ITEM_VALUE = "__any_year__";
-
 
 export default function PowerReadingsPage() {
   const { toast } = useToast();
@@ -68,6 +74,10 @@ export default function PowerReadingsPage() {
   const [filterDateBilled, setFilterDateBilled] = useState<Date | undefined>(undefined);
   const [filterBillingMonth, setFilterBillingMonth] = useState<string>("");
   const [filterBillingYear, setFilterBillingYear] = useState<string>("");
+
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
+  const [generatingInvoiceId, setGeneratingInvoiceId] = useState<string | null>(null);
 
   // Fetch clients for the filter dropdown
   useEffect(() => {
@@ -97,7 +107,6 @@ export default function PowerReadingsPage() {
       readingsQueryConstraints.push(where("clientId", "==", filterClientId));
     }
     if (filterDateBilled) {
-      // Firestore query for a specific day requires a range
       const startOfDay = new Date(filterDateBilled);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(filterDateBilled);
@@ -120,7 +129,7 @@ export default function PowerReadingsPage() {
         return {
           id: doc.id,
           ...data,
-          dateBilled: (data.dateBilled as Timestamp).toDate(), // Convert Firestore Timestamp to JS Date
+          dateBilled: (data.dateBilled as Timestamp).toDate(),
         } as PowerReadingDocument;
       });
       setPowerReadings(readingsData);
@@ -134,8 +143,76 @@ export default function PowerReadingsPage() {
     return () => unsubscribe();
   }, [toast, filterClientId, filterDateBilled, filterBillingMonth, filterBillingYear]);
 
+  const handleGenerateInvoiceClick = async (reading: PowerReadingDocument) => {
+    if (!reading.id) return;
+    setGeneratingInvoiceId(reading.id);
+    try {
+      const motherBillQuery = query(
+        collection(db, "mother-bills"),
+        where("utilityType", "==", "power"),
+        where("billingMonth", "==", reading.billingMonth),
+        where("billingYear", "==", reading.billingYear),
+        limit(1)
+      );
+
+      const motherBillSnapshot = await getDocs(motherBillQuery);
+
+      if (motherBillSnapshot.empty) {
+        toast({
+          title: "Mother Bill Not Found",
+          description: `No power mother bill found for ${reading.billingMonth} ${reading.billingYear}. Cannot generate invoice.`,
+          variant: "destructive",
+        });
+        setGeneratingInvoiceId(null);
+        return;
+      }
+
+      const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
+
+      if (motherBill.totalConsumption === 0) {
+        toast({
+          title: "Invalid Mother Bill Data",
+          description: `Mother bill for ${reading.billingMonth} ${reading.billingYear} has zero total consumption. Cannot calculate rate.`,
+          variant: "destructive",
+        });
+        setGeneratingInvoiceId(null);
+        return;
+      }
+      
+      const basicRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
+      const amountBeforeVAT = basicRate * reading.totalKwh;
+      const vatAmount = amountBeforeVAT * 0.12;
+      const totalAmountDue = amountBeforeVAT + vatAmount;
+
+      setInvoiceData({
+        clientName: reading.clientName,
+        stallNo: reading.stallNo,
+        billingPeriod: `${reading.billingMonth} ${reading.billingYear}`,
+        clientPresentReading: reading.presentReading,
+        clientPreviousReading: reading.previousReading,
+        clientTotalKwh: reading.totalKwh,
+        motherBillTotalAmount: motherBill.totalAmountBilled,
+        motherBillTotalConsumption: motherBill.totalConsumption,
+        basicRate: basicRate,
+        amountBeforeVAT: amountBeforeVAT,
+        vatAmount: vatAmount,
+        totalAmountDue: totalAmountDue,
+      });
+      setIsInvoiceModalOpen(true);
+
+    } catch (error) {
+      console.error("Error generating invoice: ", error);
+      toast({
+        title: "Invoice Generation Failed",
+        description: "Could not generate invoice. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingInvoiceId(null);
+    }
+  };
+
   const handleEdit = (readingId: string) => {
-    // Placeholder for edit functionality
     toast({ title: "Edit Clicked", description: `Would edit reading: ${readingId}` });
   };
 
@@ -170,7 +247,7 @@ export default function PowerReadingsPage() {
               <div>
                 <Label htmlFor="filter-client">Client Name</Label>
                 <Select
-                  value={filterClientId} // Select value can be "", which shows the placeholder
+                  value={filterClientId}
                   onValueChange={(selectedValue) => {
                     setFilterClientId(selectedValue === ALL_CLIENTS_SELECT_ITEM_VALUE ? "" : selectedValue);
                   }}
@@ -304,7 +381,20 @@ export default function PowerReadingsPage() {
                       <TableCell className="text-right">{reading.presentReading.toLocaleString()}</TableCell>
                       <TableCell className="text-right font-semibold">{reading.totalKwh.toLocaleString()}</TableCell>
                       <TableCell className="max-w-[150px] truncate" title={reading.notes}>{reading.notes || "-"}</TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => reading.id && handleGenerateInvoiceClick(reading)}
+                          disabled={!reading.id || generatingInvoiceId === reading.id}
+                        >
+                          {generatingInvoiceId === reading.id ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : (
+                            <FileText className="mr-1 h-3 w-3" />
+                          )}
+                          Invoice
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -322,6 +412,57 @@ export default function PowerReadingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {invoiceData && (
+        <Dialog open={isInvoiceModalOpen} onOpenChange={setIsInvoiceModalOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center"><FileText className="mr-2 h-5 w-5 text-primary"/>Invoice Details</DialogTitle>
+              <DialogDescription>
+                Billing Period: {invoiceData.billingPeriod}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4 text-sm">
+              <div className="border-b pb-2">
+                <h4 className="font-semibold text-base mb-1">Client Information</h4>
+                <p><strong>Client:</strong> {invoiceData.clientName}</p>
+                <p><strong>Stall No:</strong> {invoiceData.stallNo}</p>
+              </div>
+
+              <div className="border-b pb-2">
+                <h4 className="font-semibold text-base mb-1">Power Consumption</h4>
+                <p>Previous Reading: {invoiceData.clientPreviousReading.toLocaleString()} kWh</p>
+                <p>Present Reading: {invoiceData.clientPresentReading.toLocaleString()} kWh</p>
+                <p><strong>Total Consumed:</strong> {invoiceData.clientTotalKwh.toLocaleString()} kWh</p>
+              </div>
+              
+              <div className="border-b pb-2">
+                <h4 className="font-semibold text-base mb-1">Rate Calculation (based on Mother Bill)</h4>
+                <p>Mother Bill Total Amount: ${invoiceData.motherBillTotalAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <p>Mother Bill Total Consumption: {invoiceData.motherBillTotalConsumption.toLocaleString()} kWh</p>
+                <p><strong>Basic Rate:</strong> ${invoiceData.basicRate.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 4})} / kWh</p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-base mb-1">Amount Due</h4>
+                <div className="grid grid-cols-2 gap-x-2">
+                  <span>Subtotal:</span>
+                  <span className="text-right">${invoiceData.amountBeforeVAT.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  <span>VAT (12%):</span>
+                  <span className="text-right">${invoiceData.vatAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  <strong className="text-lg">Total Amount Due:</strong>
+                  <strong className="text-lg text-right">${invoiceData.totalAmountDue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setIsInvoiceModalOpen(false)}>Close</Button>
+              {/* PDF Export button can be added here later */}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </main>
   );
 }
+

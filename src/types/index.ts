@@ -10,14 +10,10 @@ export interface Reading {
   notes?: string;
 }
 
-// This PowerReading is the old one, can be removed or kept if used elsewhere.
-// For the new form, we'll use PowerReadingEntry and PowerReadingFormData.
 export interface PowerReading extends Reading {}
 
 export interface WaterReading extends Reading {}
 
-// This is a general MotherBill type, the existing /billing page uses something similar.
-// The new /mother-bill page will use MotherBillEntry for more specific power-related mother bills.
 export interface MotherBill {
   id:string;
   period: string; // e.g., "YYYY-MM"
@@ -74,13 +70,10 @@ export interface PowerReadingEntry {
   createdAt: FieldValue | Timestamp; // Firestore server timestamp // FieldValue for writing, Timestamp for reading
 }
 
-// For power reading documents fetched from Firestore, including their ID
-// Note: dateBilled and createdAt will be JS Date objects after fetching and transformation
 export interface PowerReadingDocument extends Omit<PowerReadingEntry, 'id' | 'dateBilled' | 'createdAt'> {
   id: string;
-  dateBilled: Date; // JS Date object for easier use in the component
-  createdAt: Date;  // JS Date object
-  // All other fields from PowerReadingEntry remain as they are
+  dateBilled: Date; 
+  createdAt?: Date;  // Optional as it might not be set on old data or if serverTimestamp is used
   clientId: string;
   clientName: string;
   stallNo: string;
@@ -95,21 +88,19 @@ export interface PowerReadingDocument extends Omit<PowerReadingEntry, 'id' | 'da
 
 export type UtilityType = 'power' | 'water';
 
-// Type for the mother bill entries to be saved in Firestore
 export interface MotherBillEntry {
-  id?: string; // Firestore will generate this
+  id?: string; 
   utilityType: UtilityType;
-  billingMonth: string; // e.g., "January", "February"
+  billingMonth: string; 
   billingYear: number;
   pastReading: number; 
   presentReading: number; 
-  totalConsumption: number; // Generic consumption unit (kWh for power, m³ for water)
-  totalAmountBilled: number; // $
+  totalConsumption: number; 
+  totalAmountBilled: number; 
   notes?: string;
-  createdAt: FieldValue | Timestamp; // Firestore server timestamp
+  createdAt: FieldValue | Timestamp; 
 }
 
-// For mother bill documents fetched from Firestore
 export interface MotherBillDocument extends Omit<MotherBillEntry, 'id' | 'createdAt'> {
     id: string;
     utilityType: UtilityType;
@@ -120,6 +111,22 @@ export interface MotherBillDocument extends Omit<MotherBillEntry, 'id' | 'create
     totalConsumption: number;
     totalAmountBilled: number;
     notes?: string;
-    createdAt: Date; // JS Date object for easier use in the component
+    createdAt: Date; 
+}
+
+// For invoice generation modal
+export interface InvoiceData {
+  clientName: string;
+  stallNo: string;
+  billingPeriod: string;
+  clientPreviousReading: number;
+  clientPresentReading: number;
+  clientTotalKwh: number;
+  motherBillTotalAmount: number;
+  motherBillTotalConsumption: number;
+  basicRate: number;
+  amountBeforeVAT: number;
+  vatAmount: number;
+  totalAmountDue: number;
 }
     
