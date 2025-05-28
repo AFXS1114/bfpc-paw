@@ -51,7 +51,7 @@ const powerReadingFormSchema = z.object({
   dateBilled: z.date({ required_error: "Date billed is required." }),
   clientId: z.string().min(1, "Client selection is required."),
   billingMonth: z.string().min(1, "Billing month is required."),
-  billingYear: z.coerce.number().min(2000, "Invalid year.").max(new Date().getFullYear() + 5, "Invalid year."),
+  billingYear: z.coerce.number().min(2000, "Invalid year.").max(2099, "Invalid year."),
   previousReading: z.coerce.number().min(0, "Previous reading must be non-negative."),
   presentReading: z.coerce.number().min(0, "Present reading must be non-negative."),
   notes: z.string().optional(),

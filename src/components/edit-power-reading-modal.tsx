@@ -43,7 +43,7 @@ import { format } from "date-fns";
 import { Calendar as CalendarIcon, Save, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, Timestamp } from "firebase/firestore";
+import { doc, updateDoc, Timestamp, serverTimestamp } from "firebase/firestore";
 import type { PowerReadingDocument } from "@/types";
 
 const MONTHS = [
@@ -54,7 +54,7 @@ const MONTHS = [
 const editPowerReadingFormSchema = z.object({
   dateBilled: z.date({ required_error: "Date billed is required." }),
   billingMonth: z.string().min(1, "Billing month is required."),
-  billingYear: z.coerce.number().min(2000, "Invalid year.").max(new Date().getFullYear() + 10, "Invalid year."),
+  billingYear: z.coerce.number().min(2000, "Invalid year.").max(2099, "Invalid year."),
   previousReading: z.coerce.number().min(0, "Previous reading must be non-negative."),
   presentReading: z.coerce.number().min(0, "Present reading must be non-negative."),
   notes: z.string().optional(),

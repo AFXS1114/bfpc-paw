@@ -46,13 +46,14 @@ import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timest
 import { Save, Loader2, ListChecks, Edit, Zap } from "lucide-react";
 import type { MotherBillEntry, MotherBillDocument } from "@/types";
 import { format } from "date-fns";
+import { EditMotherBillModal } from "@/components/edit-mother-bill-modal"; // Import the modal
 
 const motherBillFormSchema = z.object({
   billingMonth: z.string().min(1, "Billing month is required."),
-  billingYear: z.coerce.number().min(2000, "Invalid year.").max(new Date().getFullYear() + 5, "Invalid year."),
+  billingYear: z.coerce.number().min(2000, "Invalid year.").max(2099, "Invalid year."),
   pastReading: z.coerce.number().min(0, "Past reading must be non-negative."),
   presentReading: z.coerce.number().min(0, "Present reading must be non-negative."),
-  totalConsumption: z.coerce.number().min(0, "Total consumption must be non-negative."),
+  totalConsumption: z.coerce.number().min(0, "Total consumption must be non-negative."), // Now directly editable for power
   totalAmountBilled: z.coerce.number().min(0, "Total amount must be non-negative."),
   notes: z.string().optional(),
 }).refine(data => data.presentReading >= data.pastReading, {
@@ -84,6 +85,9 @@ export default function PowerMotherBillPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [motherBills, setMotherBills] = useState<MotherBillDocument[]>([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingBill, setEditingBill] = useState<MotherBillDocument | null>(null);
 
   const form = useForm<MotherBillFormData>({
     resolver: zodResolver(motherBillFormSchema),
@@ -174,8 +178,9 @@ export default function PowerMotherBillPage() {
     }
   }
   
-  const handleEditRecord = (recordId: string) => {
-    toast({ title: "Edit Clicked", description: `Would edit ${UTILITY_TYPE} mother bill record: ${recordId}` });
+  const handleEditRecord = (bill: MotherBillDocument) => {
+    setEditingBill(bill);
+    setIsEditModalOpen(true);
   };
 
   return (
@@ -368,7 +373,7 @@ export default function PowerMotherBillPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => bill.id && handleEditRecord(bill.id)}
+                          onClick={() => bill.id && handleEditRecord(bill)} // Pass the full bill document
                           disabled={!bill.id}
                         >
                           <Edit className="mr-1 h-3 w-3" /> Edit
@@ -382,6 +387,15 @@ export default function PowerMotherBillPage() {
           </CardContent>
         </Card>
       </div>
+      {editingBill && (
+        <EditMotherBillModal
+            isOpen={isEditModalOpen}
+            onOpenChange={setIsEditModalOpen}
+            bill={editingBill}
+            utilityType="power"
+        />
+      )}
     </main>
   );
 }
+

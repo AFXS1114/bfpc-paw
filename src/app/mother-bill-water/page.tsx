@@ -49,7 +49,7 @@ import { format } from "date-fns";
 
 const motherBillFormSchema = z.object({
   billingMonth: z.string().min(1, "Billing month is required."),
-  billingYear: z.coerce.number().min(2000, "Invalid year.").max(new Date().getFullYear() + 5, "Invalid year."),
+  billingYear: z.coerce.number().min(2000, "Invalid year.").max(2099, "Invalid year."),
   pastReading: z.coerce.number().min(0, "Past reading must be non-negative."),
   presentReading: z.coerce.number().min(0, "Present reading must be non-negative."),
   totalAmountBilled: z.coerce.number().min(0, "Total amount must be non-negative."),
@@ -182,6 +182,7 @@ export default function WaterMotherBillPage() {
   }
   
   const handleEditRecord = (recordId: string) => {
+    // Placeholder: Implement edit modal logic for water bills
     toast({ title: "Edit Clicked", description: `Would edit ${UTILITY_TYPE} mother bill record: ${recordId}` });
   };
 
