@@ -103,7 +103,8 @@ export default function LoginPage() {
         return;
       }
 
-      const userDoc = querySnapshot.docs[0].data() as AppUserDocument;
+      const userDocData = querySnapshot.docs[0].data() as Omit<AppUserDocument, 'id'>;
+      const userDoc = { id: querySnapshot.docs[0].id, ...userDocData } as AppUserDocument;
       setStoredUser(userDoc);
 
       if (!serviceId || typeof serviceId !== 'string') {
@@ -138,7 +139,7 @@ export default function LoginPage() {
       }
 
       const templateParams = {
-        to_email: trimmedEmail, // Using the validated and trimmed email from the form
+        to_email: trimmedEmail,
         user_name: userDoc.name,
         passcode: userDoc.passcode,
       };
@@ -153,20 +154,19 @@ export default function LoginPage() {
       setStep("passcode");
     } catch (error: any) {
       console.error("Error during email submission or sending email: ", error);
+      const currentTemplateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
       let errorMessage = "An error occurred while trying to send the passcode email. Please try again.";
       
       if (error && typeof error === 'object') {
         if ('status' in error && 'text' in error) {
-          // Specific check for "The recipients address is empty"
           if (error.status === 422 && error.text === "The recipients address is empty") {
-            errorMessage = `Failed to send email: EmailJS reports "The recipients address is empty". This means the 'To Email' field in your EmailJS template (ID: ${templateId || 'NOT_FOUND'}) on the EmailJS website is likely not configured to use '{{to_email}}' as the recipient. Please verify your EmailJS template settings.`;
+            errorMessage = `Failed to send email: EmailJS reports "The recipients address is empty". This means the 'To Email' field in your EmailJS template (ID: ${currentTemplateId || 'NOT_FOUND'}) on the EmailJS website is likely not configured to use '{{to_email}}' as the recipient. Please verify your EmailJS template settings.`;
           } else {
             errorMessage = `Failed to send passcode email. Server responded with: ${error.text} (Status: ${error.status})`;
           }
-        } else if (Object.keys(error).length === 0) { // Check if error is an empty object {}
+        } else if (Object.keys(error).length === 0) { 
           errorMessage = "Failed to send passcode email. Received an empty error response. This might be due to incorrect EmailJS service/template IDs, user parameters, or network issues. Please verify your EmailJS setup and template variables.";
         } else {
-          // Fallback for other object-type errors
           try {
             const errorString = JSON.stringify(error);
             errorMessage = `Failed to send passcode email. Unexpected error: ${errorString}. Please contact support.`;
@@ -174,7 +174,7 @@ export default function LoginPage() {
             errorMessage = "Failed to send passcode email. An unknown and unstringifiable error occurred. Please contact support.";
           }
         }
-      } else if (error instanceof Error) { // Standard JavaScript error
+      } else if (error instanceof Error) { 
         errorMessage = `Failed to send passcode email: ${error.message}. Please contact support.`;
       }
       
@@ -193,6 +193,7 @@ export default function LoginPage() {
     setIsLoading(true);
     if (storedUser && data.passcode === storedUser.passcode) {
       localStorage.setItem("pawUserVerified", "true");
+      localStorage.setItem("pawUserRole", storedUser.role); // Store user role
       toast({
         title: "Verification Successful",
         description: "You are now logged in.",

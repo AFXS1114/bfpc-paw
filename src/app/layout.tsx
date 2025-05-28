@@ -1,5 +1,5 @@
 
-"use client"; // Required for using hooks like useEffect, useRouter, usePathname
+"use client"; 
 
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
@@ -19,8 +19,9 @@ import {
 import { AppLogo } from '@/components/app-logo';
 import { MainNavigation } from '@/components/main-navigation';
 import { Button } from '@/components/ui/button';
-import { Loader2, LogOut } from 'lucide-react'; // Changed UserCircle to LogOut
-import { useToast } from '@/hooks/use-toast'; // Added useToast import
+import { Loader2, LogOut } from 'lucide-react'; 
+import { useToast } from '@/hooks/use-toast';
+import type { AppUserRole } from '@/types';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -32,6 +33,8 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+const RESTRICTED_PATHS_FOR_BILLING_OFFICER: string[] = ['/manage-records', '/billing'];
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -40,21 +43,36 @@ export default function RootLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [isVerifying, setIsVerifying] = useState(true);
-  const { toast } = useToast(); // Initialize useToast
+  const { toast } = useToast(); 
+  const [userRole, setUserRole] = useState<AppUserRole | null>(null);
 
   useEffect(() => {
     document.title = 'PAW - Power & Water Management';
 
     const isVerified = localStorage.getItem('pawUserVerified') === 'true';
+    const storedRole = localStorage.getItem('pawUserRole') as AppUserRole | null;
+    setUserRole(storedRole);
+
     if (!isVerified && pathname !== '/login') {
       router.replace('/login');
-    } else {
+    } else if (isVerified && storedRole === 'billing-officer' && RESTRICTED_PATHS_FOR_BILLING_OFFICER.includes(pathname)) {
+      toast({
+        title: "Access Denied",
+        description: "You do not have permission to access this page.",
+        variant: "destructive",
+      });
+      router.replace('/'); // Redirect to dashboard or a safe page
+      // Keep isVerifying true until redirect completes or show loading overlay
+    }
+     else {
       setIsVerifying(false);
     }
-  }, [pathname, router]);
+  }, [pathname, router, toast]);
 
   const handleLogout = () => {
     localStorage.removeItem('pawUserVerified');
+    localStorage.removeItem('pawUserRole'); // Clear user role on logout
+    setUserRole(null);
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
@@ -96,7 +114,7 @@ export default function RootLayout({
                   <AppLogo />
                 </SidebarHeader>
                 <SidebarContent className="flex-1 p-2">
-                  <MainNavigation />
+                  <MainNavigation userRole={userRole} />
                 </SidebarContent>
                 <SidebarFooter className="p-2 border-t">
                   <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleLogout}>
