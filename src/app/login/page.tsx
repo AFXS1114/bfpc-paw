@@ -74,11 +74,15 @@ export default function LoginPage() {
         variant: "destructive",
       });
       setIsLoading(false);
-      emailForm.setValue("email", ""); // Clear the input
+      emailForm.setValue("email", ""); 
       return;
     }
     
     setSubmittedEmail(trimmedEmail);
+
+    const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
+    const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
+    const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
 
     try {
       const usersRef = collection(db, "app-users");
@@ -102,25 +106,21 @@ export default function LoginPage() {
       const userDoc = querySnapshot.docs[0].data() as AppUserDocument;
       setStoredUser(userDoc);
 
-      const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
-      const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
-      const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
-
       if (!serviceId || typeof serviceId !== 'string') {
         console.error("EmailJS Service ID is not configured or not a string.");
-        toast({ title: "Configuration Error", description: "Email sending service ID is missing.", variant: "destructive" });
+        toast({ title: "Configuration Error", description: "Email sending service ID is missing. Check .env.local.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
       if (!templateId || typeof templateId !== 'string') {
         console.error("EmailJS Template ID is not configured or not a string.");
-        toast({ title: "Configuration Error", description: "Email sending template ID is missing.", variant: "destructive" });
+        toast({ title: "Configuration Error", description: "Email sending template ID is missing. Check .env.local.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
       if (!publicKey || typeof publicKey !== 'string') {
         console.error("EmailJS Public Key is not configured or not a string.");
-        toast({ title: "Configuration Error", description: "Email sending public key is missing.", variant: "destructive" });
+        toast({ title: "Configuration Error", description: "Email sending public key is missing. Check .env.local.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
@@ -138,12 +138,12 @@ export default function LoginPage() {
       }
 
       const templateParams = {
-        to_email: trimmedEmail, // Use the trimmed email
+        to_email: trimmedEmail, // Using the validated and trimmed email from the form
         user_name: userDoc.name,
         passcode: userDoc.passcode,
       };
       
-      console.log("Sending email with params:", templateParams); // For debugging
+      console.log("Sending email with params:", templateParams);
       await emailjs.send(serviceId, templateId, templateParams, publicKey);
 
       toast({
@@ -157,14 +157,16 @@ export default function LoginPage() {
       
       if (error && typeof error === 'object') {
         if ('status' in error && 'text' in error) {
+          // Specific check for "The recipients address is empty"
           if (error.status === 422 && error.text === "The recipients address is empty") {
-            errorMessage = "Failed to send email: EmailJS reports the recipient's address is empty. Please ensure your EmailJS template (ID: " + templateId + ") is correctly configured to use '{{to_email}}' as the recipient in its settings on the EmailJS website.";
+            errorMessage = `Failed to send email: EmailJS reports "The recipients address is empty". This means the 'To Email' field in your EmailJS template (ID: ${templateId || 'NOT_FOUND'}) on the EmailJS website is likely not configured to use '{{to_email}}' as the recipient. Please verify your EmailJS template settings.`;
           } else {
             errorMessage = `Failed to send passcode email. Server responded with: ${error.text} (Status: ${error.status})`;
           }
-        } else if (Object.keys(error).length === 0) {
+        } else if (Object.keys(error).length === 0) { // Check if error is an empty object {}
           errorMessage = "Failed to send passcode email. Received an empty error response. This might be due to incorrect EmailJS service/template IDs, user parameters, or network issues. Please verify your EmailJS setup and template variables.";
         } else {
+          // Fallback for other object-type errors
           try {
             const errorString = JSON.stringify(error);
             errorMessage = `Failed to send passcode email. Unexpected error: ${errorString}. Please contact support.`;
@@ -172,7 +174,7 @@ export default function LoginPage() {
             errorMessage = "Failed to send passcode email. An unknown and unstringifiable error occurred. Please contact support.";
           }
         }
-      } else if (error instanceof Error) {
+      } else if (error instanceof Error) { // Standard JavaScript error
         errorMessage = `Failed to send passcode email: ${error.message}. Please contact support.`;
       }
       
@@ -180,7 +182,7 @@ export default function LoginPage() {
         title: "Error Sending Email",
         description: errorMessage,
         variant: "destructive",
-        duration: 9000,
+        duration: 9000, 
       });
     } finally {
       setIsLoading(false);
@@ -299,8 +301,6 @@ export default function LoginPage() {
                   onClick={() => {
                     setStep("email");
                     passcodeForm.reset();
-                    // Do not reset emailForm if user wants to retry with same email
-                    // emailForm.reset({ email: submittedEmail }); 
                   }}
                   disabled={isLoading}
                 >
