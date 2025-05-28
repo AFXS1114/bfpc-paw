@@ -1,0 +1,86 @@
+{
+    "-ORJdKyWeBxcqCNec7qZ": {
+      "BILLING MONTH": "March 2024",
+      "Previous": 313,
+      "Present": 1036,
+      "KWH Used": 723
+    },
+    "-ORJdKyWs90_klLgDbr5": {
+      "BILLING MONTH": "April 2024",
+      "Previous": 1036,
+      "Present": 1670,
+      "KWH Used": 634
+    },
+    "-ORJdKyWTAkkl1Vjo7IW": {
+      "BILLING MONTH": "May 2024",
+      "Previous": 1670,
+      "Present": 1983,
+      "KWH Used": 313
+    },
+    "-ORJdKyWNvZm_wRkXt03": {
+      "BILLING MONTH": "June 2024",
+      "Previous": 1983,
+      "Present": 2356,
+      "KWH Used": 373
+    },
+    "-ORJdKyWrse9ar_2OwjV": {
+      "BILLING MONTH": "July 2024",
+      "Previous": 2356,
+      "Present": 2713,
+      "KWH Used": 357
+    },
+    "-ORJdKyWF9hp7qevr3fv": {
+      "BILLING MONTH": "August 2024",
+      "Previous": 2713,
+      "Present": 3038,
+      "KWH Used": 325
+    },
+    "-ORJdKyWeGlPnrokLe6T": {
+      "BILLING MONTH": "September 2024",
+      "Previous": 3038,
+      "Present": 3390,
+      "KWH Used": 352
+    },
+    "-ORJdKyW7ZesgXTdCnRo": {
+      "BILLING MONTH": "October 2024",
+      "Previous": 3390,
+      "Present": 3722,
+      "KWH Used": 332
+    },
+    "-ORJdKyWv0jMwsIMUEVE": {
+      "BILLING MONTH": "November 2024",
+      "Previous": 3722,
+      "Present": 3972,
+      "KWH Used": 250
+    },
+    "-ORJdKyWFyDISvJ_sRLR": {
+      "BILLING MONTH": "December 2024",
+      "Previous": 3972,
+      "Present": 4175,
+      "KWH Used": 203
+    },
+    "-ORJdKyWFq23AdR0upML": {
+      "BILLING MONTH": "January 2025",
+      "Previous": 4175,
+      "Present": 4425,
+      "KWH Used": 250
+    },
+    "-ORJdKyW_S7TuVhtK_z1": {
+      "BILLING MONTH": "February 2025",
+      "Previous": 4425,
+      "Present": 4704,
+      "KWH Used": 279
+    },
+    "-ORJdKyWdcdQwiP0ayzy": {
+      "BILLING MONTH": "March 2025",
+      "Previous": 4704,
+      "Present": 5026,
+      "KWH Used": 322
+    },
+    "-ORJdKyWN9_P8P-bujNC": {
+      "BILLING MONTH": "April 2025",
+      "Previous": 5026,
+      "Present": 5272,
+      "KWH Used": 246
+    }
+  }
