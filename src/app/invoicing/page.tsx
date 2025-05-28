@@ -27,20 +27,34 @@ import { FileText, Search, Loader2, Download } from "lucide-react";
 import { format } from "date-fns";
 
 import pdfMake from "pdfmake/build/pdfmake";
-import * as pdfFontsModule from "pdfmake/build/vfs_fonts"; // Changed import style
+// Try importing vfs_fonts using a default import
+import pdfFonts from "pdfmake/build/vfs_fonts";
 
 // Assign VFS fonts to pdfMake
-// The vfs_fonts.js file from pdfmake is a UMD module.
-// When imported as a namespace (* as pdfFontsModule), its exports are available on pdfFontsModule.
-// The typical structure is pdfFontsModule.pdfMake.vfs.
-if (pdfFontsModule && (pdfFontsModule as any).pdfMake && (pdfFontsModule as any).pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFontsModule as any).pdfMake.vfs;
-} else if (pdfFontsModule && (pdfFontsModule as any).default && (pdfFontsModule as any).default.pdfMake && (pdfFontsModule as any).default.pdfMake.vfs) {
-  // Fallback if the expected structure is on the .default export of the namespace
-  (pdfMake as any).vfs = (pdfFontsModule as any).default.pdfMake.vfs;
-}
-else {
-  console.error("Failed to load pdfMake VFS fonts. pdfFontsModule structure:", pdfFontsModule);
+// This console.log can help to inspect the structure of the imported pdfFonts object
+// console.log("Imported pdfFonts object:", JSON.stringify(pdfFonts, null, 2));
+
+if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
+  // This is the standard structure: pdfFonts = { pdfMake: { vfs: { ... } } }
+  (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
+  // console.log("pdfMake.vfs assigned via pdfFonts.pdfMake.vfs");
+} else if (pdfFonts && (pdfFonts as any).default && (pdfFonts as any).default.pdfMake && (pdfFonts as any).default.pdfMake.vfs) {
+  // Fallback: pdfFonts = { default: { pdfMake: { vfs: { ... } } } }
+  (pdfMake as any).vfs = (pdfFonts as any).default.pdfMake.vfs;
+  // console.log("pdfMake.vfs assigned via pdfFonts.default.pdfMake.vfs");
+} else if (pdfFonts && typeof pdfFonts === 'object' && Object.keys(pdfFonts).length > 0 && !(pdfFonts as any).pdfMake) {
+    // Fallback: pdfFonts might BE the VFS object itself if it's a direct default export of the VFS data.
+    // This is less common for vfs_fonts.js but possible.
+    // console.log("Attempting to assign pdfMake.vfs directly from default import 'pdfFonts'");
+    (pdfMake as any).vfs = pdfFonts;
+    if (!((pdfMake as any).vfs && Object.keys((pdfMake as any).vfs).length > 0)) {
+        // console.error("Assigning pdfMake.vfs directly from default import 'pdfFonts' did not populate vfs. Clearing.");
+        (pdfMake as any).vfs = undefined; // Clear it if it didn't work
+    } else {
+        // console.log("pdfMake.vfs assigned successfully directly from default import 'pdfFonts'");
+    }
+} else {
+  // console.error("Failed to load pdfMake VFS fonts using default import. Structure of 'pdfFonts':", JSON.stringify(pdfFonts, null, 2));
 }
 
 
@@ -260,7 +274,7 @@ export default function InvoicingPage() {
       return;
     }
     if (!(pdfMake as any).vfs) {
-      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF without VFS fonts. Check console.", variant: "destructive" });
+      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF without VFS fonts. Check console/reload.", variant: "destructive" });
       return;
     }
     setIsExportingPdf(true);
@@ -273,13 +287,18 @@ export default function InvoicingPage() {
     };
 
     const generateInvoiceContent = (invoiceCopyData: InvoiceData, copyTitle: string) => {
-      const companyHeaderInfo = [
-        ...(logoDataUrl ? [{ image: logoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const }] : []),
-        { text: invoiceCopyData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
-        { text: invoiceCopyData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const},
-        ...(invoiceCopyData.companyAddressLine2 ? [{ text: invoiceCopyData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const }] : []),
-      ];
-
+      const companyHeaderInfo: any[] = []; // Use any[] to allow conditional push
+      if (logoDataUrl) {
+          companyHeaderInfo.push({ image: logoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const });
+      }
+      companyHeaderInfo.push(
+          { text: invoiceCopyData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
+          { text: invoiceCopyData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const}
+      );
+      if (invoiceCopyData.companyAddressLine2) {
+          companyHeaderInfo.push({ text: invoiceCopyData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const });
+      }
+      
       return [
         {
           columns: [
@@ -582,5 +601,7 @@ export default function InvoicingPage() {
     </main>
   );
 }
+
+    
 
     
