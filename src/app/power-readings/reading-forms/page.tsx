@@ -35,22 +35,8 @@ import type { ClientDocument, PowerReadingDocument } from "@/types";
 import { FileText, Search, Loader2, Download, Eye } from "lucide-react";
 import { format, isValid } from "date-fns";
 
-import pdfMake from "pdfmake/build/pdfmake";
-import * as pdfFontsModule from "pdfmake/build/vfs_fonts";
-
-// Assign VFS fonts to pdfMake
-// The vfs_fonts.js file from pdfmake is a UMD module.
-// When imported as a namespace (* as pdfFontsModule), its exports are available on pdfFontsModule.
-// The typical structure is pdfFontsModule.pdfMake.vfs.
-if (pdfFontsModule && (pdfFontsModule as any).pdfMake && (pdfFontsModule as any).pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFontsModule as any).pdfMake.vfs;
-} else if (pdfFontsModule && (pdfFontsModule as any).default && (pdfFontsModule as any).default.pdfMake && (pdfFontsModule as any).default.pdfMake.vfs) {
-  // Fallback if the expected structure is on the .default export of the namespace
-  (pdfMake as any).vfs = (pdfFontsModule as any).default.pdfMake.vfs;
-}
-else {
-  console.error("Failed to load pdfMake VFS fonts in Reading Forms. pdfFontsModule structure:", pdfFontsModule);
-}
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 
 const MONTHS = [
@@ -152,113 +138,47 @@ export default function ReadingFormsPage() {
       toast({ title: "No Data", description: "Generate the form data first.", variant: "destructive" });
       return;
     }
-     if (!(pdfMake as any).vfs) {
-      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF: Font resources are not available. Please try refreshing the page or contact support if the issue persists.", variant: "destructive", duration: 7000 });
-      console.error("Attempted to export PDF, but pdfMake.vfs is not loaded.");
+    
+    const input = document.getElementById('reading-form-to-export');
+    if (!input) {
+      toast({ title: "Export Error", description: "Could not find the form content to export.", variant: "destructive" });
       return;
     }
+
     setIsExportingPdf(true);
 
-    const formatNumber = (num: number | null) => num !== null ? num.toLocaleString() : 'N/A';
-
-    const tableBody = [
-      [
-        { text: 'Month', style: 'tableHeader' },
-        { text: 'Date Billed', style: 'tableHeader' },
-        { text: 'Prev. Reading', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Pres. Reading', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Total kWh', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Notes', style: 'tableHeader' },
-      ],
-      ...yearlyReadings.map(r => [
-        r.month,
-        r.dateBilled || 'N/A',
-        { text: formatNumber(r.previousReading), alignment: 'right' as const },
-        { text: formatNumber(r.presentReading), alignment: 'right' as const },
-        { text: formatNumber(r.totalKwh), alignment: 'right' as const, bold: true },
-        r.notes || '',
-      ])
-    ];
-
-    const documentDefinition: any = {
-      content: [
-        { text: 'CLIENT POWER READING FORM', style: 'formTitle', alignment: 'center' as const, margin: [0,0,0,10] as const },
-        {
-          columns: [
-            {
-              stack: [
-                { text: `Client Name: ${selectedClientDetails.clientName}`, style: 'clientInfo' },
-                { text: `Stall No: ${selectedClientDetails.stallNo}`, style: 'clientInfo' },
-              ]
-            },
-            {
-              stack: [
-                { text: `Meter No: ${selectedClientDetails.powerMeterNo}`, style: 'clientInfo', alignment: 'right' as const },
-                { text: `Year: ${selectedYear}`, style: 'clientInfo', alignment: 'right' as const },
-              ]
-            }
-          ],
-          margin: [0, 0, 0, 15] as const
-        },
-        {
-          table: {
-            headerRows: 1,
-            widths: ['auto', 'auto', 'auto', 'auto', 'auto', '*'],
-            body: tableBody,
-          },
-          layout: {
-             hLineWidth: function (i: number, node: any) { return (i === 0 || i === node.table.body.length) ? 0.5 : 0.5; },
-             vLineWidth: function (i: number, node: any) { return 0.5; },
-             hLineColor: function (i: number, node: any) { return '#BFBFBF'; },
-             vLineColor: function (i: number, node: any) { return '#BFBFBF'; },
-             paddingLeft: function(i: number, node: any) { return 4; },
-             paddingRight: function(i: number, node: any) { return 4; },
-             paddingTop: function(i: number, node: any) { return 2; },
-             paddingBottom: function(i: number, node: any) { return 2; }
-          }
-        },
-        { text: ' ', margin: [0, 20, 0, 0] }, // Spacer
-        {
-          columns: [
-            {
-              stack: [
-                { text: 'Readings Performed By:', style: 'signatureLabel', margin: [0,0,0,25] as const },
-                { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }] },
-                { text: '(Signature over Printed Name)', style: 'signatureCaption' },
-              ],
-              width: '*'
-            },
-            {
-              stack: [
-                { text: 'Checked By:', style: 'signatureLabel', margin: [0,0,0,25] as const },
-                { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 180, y2: 0, lineWidth: 0.5 }] },
-                { text: '(Signature over Printed Name)', style: 'signatureCaption' },
-              ],
-              width: '*'
-            }
-          ],
-          columnGap: 20,
-        }
-      ],
-      styles: {
-        formTitle: { fontSize: 16, bold: true, color: '#1E40AF' },
-        clientInfo: { fontSize: 10, margin: [0, 0, 0, 2] },
-        tableHeader: { bold: true, fontSize: 9, color: '#1F2937' },
-        signatureLabel: { fontSize: 9, color: '#374151' },
-        signatureCaption: { fontSize: 7, italics: true, color: '#6B7280', alignment: 'center' as const },
-      },
-      defaultStyle: {
-        fontSize: 8.5,
-        lineHeight: 1.2,
-        font: "Roboto",
-      },
-      pageSize: 'A4',
-      pageOrientation: 'portrait',
-      pageMargins: [30, 30, 30, 30],
-    };
-
     try {
-      pdfMake.createPdf(documentDefinition).download(`ReadingForm-${selectedClientDetails.stallNo}-${selectedYear}.pdf`);
+      const canvas = await html2canvas(input, {
+        scale: 2, // Increase scale for better quality
+        useCORS: true,
+        logging: false,
+        windowWidth: input.scrollWidth,
+        windowHeight: input.scrollHeight,
+      });
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt', // points
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      
+      const scaledWidth = imgWidth * ratio;
+      const scaledHeight = imgHeight * ratio;
+
+      // Center the image on the PDF page
+      const x = (pdfWidth - scaledWidth) / 2;
+      const y = 15; // Small top margin
+
+      pdf.addImage(imgData, 'PNG', x, y, scaledWidth, scaledHeight);
+      pdf.save(`ReadingForm-${selectedClientDetails.stallNo}-${selectedYear}.pdf`);
+      
       toast({ title: "PDF Exported", description: "Reading form has been downloaded." });
     } catch (e) {
       console.error("Error exporting PDF: ", e);
@@ -354,30 +274,57 @@ export default function ReadingFormsPage() {
               </Button>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Month</TableHead>
-                    <TableHead>Date Billed</TableHead>
-                    <TableHead className="text-right">Prev. Reading</TableHead>
-                    <TableHead className="text-right">Pres. Reading</TableHead>
-                    <TableHead className="text-right">Total kWh</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {yearlyReadings.map((reading) => (
-                    <TableRow key={reading.month}>
-                      <TableCell className="font-medium">{reading.month}</TableCell>
-                      <TableCell>{reading.dateBilled || 'N/A'}</TableCell>
-                      <TableCell className="text-right">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
-                      <TableCell className="text-right">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
-                      <TableCell className="text-right font-semibold">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
-                      <TableCell className="max-w-[150px] truncate" title={reading.notes || undefined}>{reading.notes || '-'}</TableCell>
+              <div id="reading-form-to-export" className="p-4 bg-white text-black printable-area">
+                <div className="text-center mb-4">
+                  <h2 className="text-xl font-bold text-blue-700">CLIENT POWER READING FORM</h2>
+                  <p className="text-sm">BULAN FISH PORT COMPLEX</p>
+                  <p className="text-xs">Pier 2, Zone-4, Bulan, Sorsogon</p>
+                </div>
+                <div className="flex justify-between items-start mb-4 text-sm">
+                  <div>
+                    <p><strong>Client Name:</strong> {selectedClientDetails.clientName}</p>
+                    <p><strong>Stall No:</strong> {selectedClientDetails.stallNo}</p>
+                  </div>
+                  <div className="text-right">
+                    <p><strong>Meter No:</strong> {selectedClientDetails.powerMeterNo}</p>
+                    <p><strong>Year:</strong> {selectedYear}</p>
+                  </div>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs border border-gray-400 p-1">Month</TableHead>
+                      <TableHead className="text-xs border border-gray-400 p-1">Date Billed</TableHead>
+                      <TableHead className="text-right text-xs border border-gray-400 p-1">Prev. Reading</TableHead>
+                      <TableHead className="text-right text-xs border border-gray-400 p-1">Pres. Reading</TableHead>
+                      <TableHead className="text-right text-xs border border-gray-400 p-1">Total kWh</TableHead>
+                      <TableHead className="text-xs border border-gray-400 p-1">Notes</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {yearlyReadings.map((reading) => (
+                      <TableRow key={reading.month}>
+                        <TableCell className="font-medium text-xs border border-gray-400 p-1">{reading.month}</TableCell>
+                        <TableCell className="text-xs border border-gray-400 p-1">{reading.dateBilled || 'N/A'}</TableCell>
+                        <TableCell className="text-right text-xs border border-gray-400 p-1">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
+                        <TableCell className="text-right text-xs border border-gray-400 p-1">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
+                        <TableCell className="text-right font-semibold text-xs border border-gray-400 p-1">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
+                        <TableCell className="max-w-[100px] truncate text-xs border border-gray-400 p-1" title={reading.notes || undefined}>{reading.notes || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="mt-10 flex justify-around text-xs">
+                    <div>
+                        <p className="mb-12">Readings Performed By:</p>
+                        <p className="border-t border-gray-500 pt-1 text-center">(Signature over Printed Name)</p>
+                    </div>
+                    <div>
+                        <p className="mb-12">Checked By:</p>
+                        <p className="border-t border-gray-500 pt-1 text-center">(Signature over Printed Name)</p>
+                    </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
