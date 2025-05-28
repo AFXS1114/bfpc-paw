@@ -1,86 +1,110 @@
 {
-    "-ORJdKyWeBxcqCNec7qZ": {
+    "-ORJgSqOXglBY6v2OTux": {
+      "BILLING MONTH": "November 2023",
+      "Previous": 11335,
+      "Present": 11520,
+      "KWH Used": 185
+    },
+    "-ORJgSqOX92OInd78gpp": {
+      "BILLING MONTH": "December 2023",
+      "Previous": 11520,
+      "Present": 11755,
+      "KWH Used": 235
+    },
+    "-ORJgSqOlXuk1MeOyq0x": {
+      "BILLING MONTH": "January 2024",
+      "Previous": 11755,
+      "Present": 11882,
+      "KWH Used": 127
+    },
+    "-ORJgSqO2Kl8Pais1KBx": {
+      "BILLING MONTH": "February 2024",
+      "Previous": 11882,
+      "Present": 12062,
+      "KWH Used": 180
+    },
+    "-ORJgSqOg6H5W0PPCGW7": {
       "BILLING MONTH": "March 2024",
-      "Previous": 313,
-      "Present": 1036,
-      "KWH Used": 723
+      "Previous": 12062,
+      "Present": 12255,
+      "KWH Used": 193
     },
-    "-ORJdKyWs90_klLgDbr5": {
+    "-ORJgSqOrmgJ-n3ziaT_": {
       "BILLING MONTH": "April 2024",
-      "Previous": 1036,
-      "Present": 1670,
-      "KWH Used": 634
+      "Previous": 12255,
+      "Present": 12440,
+      "KWH Used": 185
     },
-    "-ORJdKyWTAkkl1Vjo7IW": {
+    "-ORJgSqOgpBiI0-9IvA4": {
       "BILLING MONTH": "May 2024",
-      "Previous": 1670,
-      "Present": 1983,
-      "KWH Used": 313
+      "Previous": 12440,
+      "Present": 12590,
+      "KWH Used": 150
     },
-    "-ORJdKyWNvZm_wRkXt03": {
+    "-ORJgSqOO8Qhnnb-DgqW": {
       "BILLING MONTH": "June 2024",
-      "Previous": 1983,
-      "Present": 2356,
-      "KWH Used": 373
+      "Previous": 12590,
+      "Present": 12671,
+      "KWH Used": 81
     },
-    "-ORJdKyWrse9ar_2OwjV": {
+    "-ORJgSqO-kApVmJGhEQv": {
       "BILLING MONTH": "July 2024",
-      "Previous": 2356,
-      "Present": 2713,
-      "KWH Used": 357
+      "Previous": 12671,
+      "Present": 12752,
+      "KWH Used": 81
     },
-    "-ORJdKyWF9hp7qevr3fv": {
+    "-ORJgSqO-xx3yWWxaYuS": {
       "BILLING MONTH": "August 2024",
-      "Previous": 2713,
-      "Present": 3038,
-      "KWH Used": 325
+      "Previous": 12752,
+      "Present": 12833,
+      "KWH Used": 81
     },
-    "-ORJdKyWeGlPnrokLe6T": {
+    "-ORJgSqOdEup9i9X2ePA": {
       "BILLING MONTH": "September 2024",
-      "Previous": 3038,
-      "Present": 3390,
-      "KWH Used": 352
+      "Previous": 12833,
+      "Present": 12897,
+      "KWH Used": 64
     },
-    "-ORJdKyW7ZesgXTdCnRo": {
+    "-ORJgSqOvJENYt_xTjVv": {
       "BILLING MONTH": "October 2024",
-      "Previous": 3390,
-      "Present": 3722,
-      "KWH Used": 332
+      "Previous": 12897,
+      "Present": 12973,
+      "KWH Used": 76
     },
-    "-ORJdKyWv0jMwsIMUEVE": {
+    "-ORJgSqOCLO9febW2ooU": {
       "BILLING MONTH": "November 2024",
-      "Previous": 3722,
-      "Present": 3972,
-      "KWH Used": 250
+      "Previous": 12973,
+      "Present": 13049,
+      "KWH Used": 76
     },
-    "-ORJdKyWFyDISvJ_sRLR": {
+    "-ORJgSqO9Rt-1MLM6bQS": {
       "BILLING MONTH": "December 2024",
-      "Previous": 3972,
-      "Present": 4175,
-      "KWH Used": 203
+      "Previous": 13049,
+      "Present": 13125,
+      "KWH Used": 76
     },
-    "-ORJdKyWFq23AdR0upML": {
+    "-ORJgSqOscsorUyWbpNO": {
       "BILLING MONTH": "January 2025",
-      "Previous": 4175,
-      "Present": 4425,
-      "KWH Used": 250
+      "Previous": 13125,
+      "Present": 13200,
+      "KWH Used": 75
     },
-    "-ORJdKyW_S7TuVhtK_z1": {
+    "-ORJgSqOM3rCVr5BmM-K": {
       "BILLING MONTH": "February 2025",
-      "Previous": 4425,
-      "Present": 4704,
-      "KWH Used": 279
+      "Previous": 13200,
+      "Present": 13268,
+      "KWH Used": 68
     },
-    "-ORJdKyWdcdQwiP0ayzy": {
+    "-ORJgSqOZidP6sZj_9F7": {
       "BILLING MONTH": "March 2025",
-      "Previous": 4704,
-      "Present": 5026,
-      "KWH Used": 322
+      "Previous": 13268,
+      "Present": 13326,
+      "KWH Used": 58
     },
-    "-ORJdKyWN9_P8P-bujNC": {
+    "-ORJgSqOTe4Q-ETQ4vjp": {
       "BILLING MONTH": "April 2025",
-      "Previous": 5026,
-      "Present": 5272,
-      "KWH Used": 246
+      "Previous": 13326,
+      "Present": 13368,
+      "KWH Used": 42
     }
   }

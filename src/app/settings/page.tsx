@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { AppUserRole, ClientDocument } from "@/types"; // Ensure ClientDocument is imported
+import type { AppUserRole, ClientDocument } from "@/types";
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog, List, UploadCloud } from "lucide-react";
@@ -25,7 +26,7 @@ import { AddReadingPerformerModal } from "@/components/add-reading-performer-mod
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, getDocs, limit, Timestamp } from "firebase/firestore";
 import type { PowerReadingEntry } from "@/types";
-import reftechDataJson from '@/lib/reftech.json'; // Direct import of the JSON data
+// Removed direct import of reftech.json
 
 const MONTHS_FOR_PARSING = [
   "January", "February", "March", "April", "May", "June",
@@ -45,6 +46,7 @@ export default function SettingsPage() {
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [selectedClientIdForImport, setSelectedClientIdForImport] = useState<string>("");
   const [isImportingClientReadings, setIsImportingClientReadings] = useState(false);
+  const [jsonInputString, setJsonInputString] = useState<string>(""); // State for pasted JSON
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -52,7 +54,6 @@ export default function SettingsPage() {
       setUserRole(storedRole);
     }
 
-    // Fetch clients for the import dropdown
     setIsLoadingClients(true);
     const clientsQuery = query(collection(db, "clients"), orderBy("clientName", "asc"));
     const unsubscribeClients = onSnapshot(clientsQuery, (querySnapshot) => {
@@ -97,11 +98,16 @@ export default function SettingsPage() {
     }
   };
 
-  const handleImportReftechReadings = async () => {
+  const handleImportPastedJsonReadings = async () => { // Renamed function
     if (!selectedClientIdForImport) {
       toast({ title: "Client Not Selected", description: "Please select a client to assign these readings to.", variant: "destructive" });
       return;
     }
+    if (!jsonInputString.trim()) {
+      toast({ title: "No JSON Data", description: "Please paste the JSON data into the text area.", variant: "destructive" });
+      return;
+    }
+
     setIsImportingClientReadings(true);
 
     const selectedClient = clients.find(c => c.id === selectedClientIdForImport);
@@ -111,12 +117,24 @@ export default function SettingsPage() {
       return;
     }
 
+    let parsedJsonData: any;
+    try {
+      parsedJsonData = JSON.parse(jsonInputString);
+    } catch (e) {
+      toast({
+        title: "Invalid JSON",
+        description: "The pasted text is not valid JSON. Please check the format.",
+        variant: "destructive",
+      });
+      setIsImportingClientReadings(false);
+      return;
+    }
+
     let importedCount = 0;
     let skippedCount = 0;
     const readingsCollection = collection(db, "power-readings");
 
-    // The reftechDataJson is an object where keys are arbitrary and values are the records
-    const recordsToImport = Object.values(reftechDataJson);
+    const recordsToImport = Object.values(parsedJsonData) as Array<Record<string, string | number>>;
 
     for (const record of recordsToImport) {
       try {
@@ -124,7 +142,6 @@ export default function SettingsPage() {
         const billingMonth = billingMonthYear[0];
         const billingYear = parseInt(billingMonthYear[1], 10);
 
-        // Duplicate check
         const q = query(
           readingsCollection,
           where("clientId", "==", selectedClient.id),
@@ -145,7 +162,7 @@ export default function SettingsPage() {
             skippedCount++;
             continue;
         }
-        const dateBilled = new Date(billingYear, monthIndex, 1); // Default to 1st of the month
+        const dateBilled = new Date(billingYear, monthIndex, 1);
 
         const newReadingEntry: Omit<PowerReadingEntry, 'id' | 'createdAt'> = {
           clientId: selectedClient.id,
@@ -158,7 +175,7 @@ export default function SettingsPage() {
           previousReading: Number(record.Previous) || 0,
           presentReading: Number(record.Present) || 0,
           totalKwh: Number(record["KWH Used"]) || 0,
-          notes: "Imported from reftech.json",
+          notes: "Imported from pasted JSON",
         };
 
         await addDoc(readingsCollection, {
@@ -167,7 +184,7 @@ export default function SettingsPage() {
         });
         importedCount++;
       } catch (e) {
-        console.error("Error importing a Reftech record: ", record, e);
+        console.error("Error importing a JSON record: ", record, e);
         toast({
           title: "Partial Import Error",
           description: `Error importing record for billing month ${record["BILLING MONTH"]}. Check console.`,
@@ -177,10 +194,12 @@ export default function SettingsPage() {
     }
 
     toast({
-      title: "Reftech Import Complete",
+      title: "Pasted JSON Import Complete",
       description: `${importedCount} records imported. ${skippedCount} records skipped (duplicates or errors).`,
     });
     setIsImportingClientReadings(false);
+    setJsonInputString(""); // Clear textarea
+    setSelectedClientIdForImport(""); // Clear selected client
   };
 
 
@@ -212,10 +231,11 @@ export default function SettingsPage() {
               </CardTitle>
               <CardDescription>One-time data import utilities.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6"> {/* Increased spacing */}
               <div>
+                <h3 className="text-lg font-medium mb-1">Import Historical Mother Bills</h3>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Import historical mother bill data from a predefined JSON structure.
+                  Import historical mother bill data from a predefined JSON structure embedded in the app.
                 </p>
                 <Button onClick={handleImportData} disabled={isImporting}>
                   {isImporting ? (
@@ -228,21 +248,32 @@ export default function SettingsPage() {
               </div>
               <hr className="my-4"/>
               <div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  Import power readings for a specific client from `reftech.json`.
+                <h3 className="text-lg font-medium mb-1">Import Client Power Readings from JSON</h3>
+                 <p className="text-sm text-muted-foreground mb-3">
+                  Paste your JSON data below and select a client to assign these readings to.
+                  The JSON should be an object where each key is an arbitrary ID and the value is an object with keys:
+                  "BILLING MONTH" (e.g., "January 2023"), "Previous" (number), "Present" (number), and "KWH Used" (number).
                 </p>
-                 <p className="text-xs text-muted-foreground mb-3">
-                  This file is located in `src/lib/reftech.json`. Ensure it's correctly formatted.
-                </p>
-                <div className="space-y-3 max-w-md">
+                <div className="space-y-4 max-w-lg"> {/* Increased max-width for better layout */}
                   <div>
-                    <Label htmlFor="select-client-for-import">Assign Readings to Client</Label>
+                    <Label htmlFor="paste-json-data">Paste JSON Data Here</Label>
+                    <Textarea
+                      id="paste-json-data"
+                      value={jsonInputString}
+                      onChange={(e) => setJsonInputString(e.target.value)}
+                      placeholder='{\n  "-ID1": { "BILLING MONTH": "January 2023", "Previous": 100, "Present": 200, "KWH Used": 100 },\n  "-ID2": { "BILLING MONTH": "February 2023", "Previous": 200, "Present": 350, "KWH Used": 150 }\n}'
+                      className="mt-1 min-h-[150px] font-mono text-xs" // Adjusted height
+                      disabled={isImportingClientReadings}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="select-client-for-pasted-import">Assign Readings to Client</Label>
                     <Select
                       value={selectedClientIdForImport}
                       onValueChange={setSelectedClientIdForImport}
                       disabled={isLoadingClients || isImportingClientReadings}
                     >
-                      <SelectTrigger id="select-client-for-import" className="mt-1">
+                      <SelectTrigger id="select-client-for-pasted-import" className="mt-1">
                         <SelectValue placeholder={isLoadingClients ? "Loading clients..." : "Select a client"} />
                       </SelectTrigger>
                       <SelectContent>
@@ -255,8 +286,8 @@ export default function SettingsPage() {
                     </Select>
                   </div>
                   <Button 
-                    onClick={handleImportReftechReadings} 
-                    disabled={isImportingClientReadings || !selectedClientIdForImport || isLoadingClients}
+                    onClick={handleImportPastedJsonReadings} 
+                    disabled={isImportingClientReadings || !selectedClientIdForImport || isLoadingClients || !jsonInputString.trim()}
                     className="w-full"
                   >
                     {isImportingClientReadings ? (
@@ -264,7 +295,7 @@ export default function SettingsPage() {
                     ) : (
                       <UploadCloud className="mr-2 h-4 w-4" />
                     )}
-                    Import Reftech Client Readings
+                    Import Pasted JSON Readings
                   </Button>
                 </div>
               </div>
