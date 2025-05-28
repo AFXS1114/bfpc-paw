@@ -38,6 +38,9 @@ import pdfMake from "pdfmake/build/pdfmake";
 import * as pdfFontsModule from "pdfmake/build/vfs_fonts";
 
 // Assign VFS fonts to pdfMake
+// The vfs_fonts.js file from pdfmake is a UMD module.
+// When imported as a namespace (* as pdfFontsModule), its exports are available on pdfFontsModule.
+// The typical structure is pdfFontsModule.pdfMake.vfs.
 if (pdfFontsModule && (pdfFontsModule as any).pdfMake && (pdfFontsModule as any).pdfMake.vfs) {
   (pdfMake as any).vfs = (pdfFontsModule as any).pdfMake.vfs;
 } else if (pdfFontsModule && (pdfFontsModule as any).default && (pdfFontsModule as any).default.pdfMake && (pdfFontsModule as any).default.pdfMake.vfs) {
