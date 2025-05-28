@@ -153,7 +153,8 @@ export default function ReadingFormsPage() {
       return;
     }
      if (!(pdfMake as any).vfs) {
-      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF without VFS fonts. Check console and ensure fonts are loaded correctly.", variant: "destructive" });
+      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF: Font resources are not available. Please try refreshing the page or contact support if the issue persists.", variant: "destructive", duration: 7000 });
+      console.error("Attempted to export PDF, but pdfMake.vfs is not loaded.");
       return;
     }
     setIsExportingPdf(true);
@@ -343,7 +344,7 @@ export default function ReadingFormsPage() {
                 <CardTitle>Reading Form for {selectedClientDetails.clientName} - {selectedYear}</CardTitle>
                 <CardDescription>Review the readings below or export to PDF.</CardDescription>
               </div>
-              <Button onClick={handleExportToPdf} disabled={isExportingPdf}>
+              <Button onClick={handleExportToPdf} disabled={isExportingPdf || !yearlyReadings || !selectedClientDetails}>
                 {isExportingPdf ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
