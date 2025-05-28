@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Settings, Droplet, Zap, BarChart3, Users, ListTree, ReceiptText, FileText as InvoiceIcon, DatabaseZap } from "lucide-react";
+import { LayoutDashboard, Settings, Droplet, Zap, BarChart3, Users, ListTree, ReceiptText, FileText as InvoiceIcon, DatabaseZap, ClipboardList } from "lucide-react";
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -45,10 +45,11 @@ const allNavItems: NavigationItem[] = [
   { href: "/mother-bill", label: "Mother Bill (Power)", icon: ReceiptText, section: "Power Management" }, 
   { href: "/power", label: "Power Entry", icon: Zap, section: "Power Management" },
   { href: "/power-readings", label: "Power Readings", icon: ListTree, section: "Power Management" },
+  { href: "/power-readings/reading-forms", label: "Reading Forms", icon: ClipboardList, section: "Power Management" },
   { type: "separator", section: "Power Management_End"},
 
   // Water Management
-  { href: "/mother-bill-water", label: "Mother Bill (Water)", icon: Droplet, section: "Water Management" }, 
+  { href: "/mother-bill-water", label: "Mother Bill (Water)", icon: ReceiptText, section: "Water Management" }, 
   { href: "/water", label: "Water Entry", icon: Droplet, section: "Water Management" }, 
   { type: "separator", section: "Water Management_End"},
   
@@ -60,14 +61,14 @@ const allNavItems: NavigationItem[] = [
     label: "Manage Records", 
     icon: DatabaseZap, 
     section: "Client & Financials",
-    restrictedToRoles: ["billing-officer"] // Only billing officers cannot see this
+    restrictedToRoles: ["billing-officer"] 
   },
   { 
     href: "/billing", 
     label: "Billing Summary", 
     icon: BarChart3, 
     section: "Client & Financials",
-    restrictedToRoles: ["billing-officer"] // Only billing officers cannot see this
+    restrictedToRoles: ["billing-officer"] 
   }, 
   { type: "separator", section: "Client & Financials_End"},
 
@@ -85,9 +86,6 @@ export function MainNavigation({ userRole: initialUserRole }: MainNavigationProp
   const [currentUserRole, setCurrentUserRole] = useState<AppUserRole | null>(initialUserRole);
 
   useEffect(() => {
-    // This ensures that if the role is updated elsewhere (e.g. on login/logout in layout),
-    // the navigation re-renders based on the prop.
-    // It also tries to get it from localStorage if not passed or on initial client render.
     if (initialUserRole) {
       setCurrentUserRole(initialUserRole);
     } else if (typeof window !== 'undefined') {
@@ -99,7 +97,7 @@ export function MainNavigation({ userRole: initialUserRole }: MainNavigationProp
 
   const filteredNavItems = allNavItems.filter(item => {
     if (item.restrictedToRoles && currentUserRole && item.restrictedToRoles.includes(currentUserRole)) {
-      return false; // Hide if current user's role is in the restricted list for this item
+      return false; 
     }
     return true;
   });
@@ -110,16 +108,35 @@ export function MainNavigation({ userRole: initialUserRole }: MainNavigationProp
         if (item.type === "separator") {
           return <SidebarSeparator key={`separator-${item.section}-${index}`} className="my-2" />;
         }
-        // Type guard for NavItem
+        
         if (!item.href || !item.label || !item.icon) return null;
         
-        const NavIcon = item.icon; // Ensure item.icon is treated as a component type
+        const NavIcon = item.icon; 
+
+        // For nested routes like /power-readings/reading-forms, we want /power-readings to also be active
+        let isActive = pathname === item.href;
+        if (item.href !== "/" && pathname.startsWith(item.href)) {
+           // Make sure /power-readings is not active if /power-readings/reading-forms is active
+           if (item.href === "/power-readings" && pathname === "/power-readings/reading-forms") {
+                isActive = false;
+           } else {
+                isActive = true;
+           }
+        }
+        // Specifically for the root /power-readings, ensure it's only active if not on a sub-route
+        if (item.href === "/power-readings" && pathname.startsWith("/power-readings/") && pathname !== "/power-readings") {
+             isActive = false;
+        }
+         if (item.href === "/power-readings/reading-forms" && pathname === "/power-readings/reading-forms"){
+            isActive = true;
+        }
+
 
         return (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
               asChild
-              isActive={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))}
+              isActive={isActive}
               className="w-full justify-start"
               tooltip={{
                 children: item.label,
@@ -139,3 +156,5 @@ export function MainNavigation({ userRole: initialUserRole }: MainNavigationProp
     </SidebarMenu>
   );
 }
+
+    
