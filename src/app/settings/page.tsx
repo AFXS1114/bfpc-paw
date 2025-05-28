@@ -8,9 +8,10 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog } from "lucide-react"; 
+import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog, List } from "lucide-react"; 
 import { importHistoricalMotherBills } from "@/lib/import-mother-bills";
 import { AddUserModal } from "@/components/add-user-modal";
+import { ViewUsersModal } from "@/components/view-users-modal"; // Import ViewUsersModal
 import { AddSignatoryModal } from "@/components/add-signatory-modal";
 import { AddReadingPerformerModal } from "@/components/add-reading-performer-modal"; 
 
@@ -18,6 +19,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [isImporting, setIsImporting] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [isViewUsersModalOpen, setIsViewUsersModalOpen] = useState(false); // State for ViewUsersModal
   const [isAddSignatoryModalOpen, setIsAddSignatoryModalOpen] = useState(false);
   const [isAddReadingPerformerModalOpen, setIsAddReadingPerformerModalOpen] = useState(false);
   const [userRole, setUserRole] = useState<AppUserRole | null>(null);
@@ -108,12 +110,14 @@ export default function SettingsPage() {
               <CardDescription>Manage application users.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={() => setIsAddUserModalOpen(true)}>
-                <UserPlus className="mr-2 h-4 w-4" /> Add App User
-              </Button>
-              <p className="text-sm text-muted-foreground mt-2">
-                App user list and editing capabilities will be added here in the future.
-              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setIsAddUserModalOpen(true)}>
+                  <UserPlus className="mr-2 h-4 w-4" /> Add App User
+                </Button>
+                <Button variant="outline" onClick={() => setIsViewUsersModalOpen(true)}>
+                  <List className="mr-2 h-4 w-4" /> View App Users
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -127,12 +131,14 @@ export default function SettingsPage() {
             <CardDescription>Manage personnel involved in billing and readings.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={() => setIsAddSignatoryModalOpen(true)}>
-              <UserPlus className="mr-2 h-4 w-4" /> Add Invoice Signatory
-            </Button>
-            <Button onClick={() => setIsAddReadingPerformerModalOpen(true)} variant="outline">
-              <UserCog className="mr-2 h-4 w-4" /> Add Reading Performer 
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => setIsAddSignatoryModalOpen(true)}>
+                <UserPlus className="mr-2 h-4 w-4" /> Add Invoice Signatory
+              </Button>
+              <Button onClick={() => setIsAddReadingPerformerModalOpen(true)} variant="outline">
+                <UserCog className="mr-2 h-4 w-4" /> Add Reading Performer 
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground mt-2">
               Personnel lists and editing capabilities will be added here in the future.
             </p>
@@ -150,6 +156,7 @@ export default function SettingsPage() {
         </Card>
       </div>
       <AddUserModal isOpen={isAddUserModalOpen} onOpenChange={setIsAddUserModalOpen} />
+      <ViewUsersModal isOpen={isViewUsersModalOpen} onOpenChange={setIsViewUsersModalOpen} /> 
       <AddSignatoryModal isOpen={isAddSignatoryModalOpen} onOpenChange={setIsAddSignatoryModalOpen} />
       <AddReadingPerformerModal isOpen={isAddReadingPerformerModalOpen} onOpenChange={setIsAddReadingPerformerModalOpen} />
     </main>
