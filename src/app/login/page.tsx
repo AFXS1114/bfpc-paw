@@ -65,13 +65,26 @@ export default function LoginPage() {
 
   const handleEmailSubmit = async (data: EmailFormData) => {
     setIsLoading(true);
-    setSubmittedEmail(data.email);
+    const trimmedEmail = data.email.trim();
+
+    if (!trimmedEmail) {
+      toast({
+        title: "Invalid Email",
+        description: "Email address cannot be empty or just whitespace.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      emailForm.setValue("email", ""); // Clear the input
+      return;
+    }
+    
+    setSubmittedEmail(trimmedEmail);
 
     try {
       const usersRef = collection(db, "app-users");
       const q = query(
         usersRef,
-        where("email", "==", data.email),
+        where("email", "==", trimmedEmail),
         limit(1)
       );
       const querySnapshot = await getDocs(q);
@@ -89,52 +102,48 @@ export default function LoginPage() {
       const userDoc = querySnapshot.docs[0].data() as AppUserDocument;
       setStoredUser(userDoc);
 
-      // Send email using EmailJS
       const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
       const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
       const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
 
-      // Pre-flight checks for EmailJS config
       if (!serviceId || typeof serviceId !== 'string') {
         console.error("EmailJS Service ID is not configured or not a string.");
-        toast({ title: "Configuration Error", description: "Email sending service ID is missing. Please contact support.", variant: "destructive" });
+        toast({ title: "Configuration Error", description: "Email sending service ID is missing.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
       if (!templateId || typeof templateId !== 'string') {
         console.error("EmailJS Template ID is not configured or not a string.");
-        toast({ title: "Configuration Error", description: "Email sending template ID is missing. Please contact support.", variant: "destructive" });
+        toast({ title: "Configuration Error", description: "Email sending template ID is missing.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
       if (!publicKey || typeof publicKey !== 'string') {
         console.error("EmailJS Public Key is not configured or not a string.");
-        toast({ title: "Configuration Error", description: "Email sending public key is missing. Please contact support.", variant: "destructive" });
+        toast({ title: "Configuration Error", description: "Email sending public key is missing.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
-
-      // Pre-flight checks for template parameters
       if (!userDoc.name || typeof userDoc.name !== 'string') {
         console.error("User name is missing or not a string for template params.", userDoc);
-        toast({ title: "Data Error", description: "User data (name) is incomplete for sending email. Please contact support.", variant: "destructive" });
+        toast({ title: "Data Error", description: "User data (name) is incomplete for sending email.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
       if (!userDoc.passcode || typeof userDoc.passcode !== 'string') {
         console.error("User passcode is missing or not a string for template params.", userDoc);
-        toast({ title: "Data Error", description: "User data (passcode) is incomplete for sending email. Please contact support.", variant: "destructive" });
+        toast({ title: "Data Error", description: "User data (passcode) is incomplete for sending email.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
-      // data.email is validated by Zod schema, so it should be fine.
 
       const templateParams = {
-        to_email: data.email,
+        to_email: trimmedEmail, // Use the trimmed email
         user_name: userDoc.name,
         passcode: userDoc.passcode,
       };
       
+      console.log("Sending email with params:", templateParams); // For debugging
       await emailjs.send(serviceId, templateId, templateParams, publicKey);
 
       toast({
@@ -148,7 +157,11 @@ export default function LoginPage() {
       
       if (error && typeof error === 'object') {
         if ('status' in error && 'text' in error) {
-          errorMessage = `Failed to send passcode email. Server responded with: ${error.text} (Status: ${error.status})`;
+          if (error.status === 422 && error.text === "The recipients address is empty") {
+            errorMessage = "Failed to send email: EmailJS reports the recipient's address is empty. Please ensure your EmailJS template (ID: " + templateId + ") is correctly configured to use '{{to_email}}' as the recipient in its settings on the EmailJS website.";
+          } else {
+            errorMessage = `Failed to send passcode email. Server responded with: ${error.text} (Status: ${error.status})`;
+          }
         } else if (Object.keys(error).length === 0) {
           errorMessage = "Failed to send passcode email. Received an empty error response. This might be due to incorrect EmailJS service/template IDs, user parameters, or network issues. Please verify your EmailJS setup and template variables.";
         } else {
@@ -167,6 +180,7 @@ export default function LoginPage() {
         title: "Error Sending Email",
         description: errorMessage,
         variant: "destructive",
+        duration: 9000,
       });
     } finally {
       setIsLoading(false);
@@ -285,7 +299,8 @@ export default function LoginPage() {
                   onClick={() => {
                     setStep("email");
                     passcodeForm.reset();
-                    emailForm.reset({ email: submittedEmail });
+                    // Do not reset emailForm if user wants to retry with same email
+                    // emailForm.reset({ email: submittedEmail }); 
                   }}
                   disabled={isLoading}
                 >
