@@ -37,12 +37,15 @@ import { format, isValid } from "date-fns";
 import pdfMake from "pdfmake/build/pdfmake";
 import * as pdfFontsModule from "pdfmake/build/vfs_fonts";
 
+// Assign VFS fonts to pdfMake
 if (pdfFontsModule && (pdfFontsModule as any).pdfMake && (pdfFontsModule as any).pdfMake.vfs) {
   (pdfMake as any).vfs = (pdfFontsModule as any).pdfMake.vfs;
 } else if (pdfFontsModule && (pdfFontsModule as any).default && (pdfFontsModule as any).default.pdfMake && (pdfFontsModule as any).default.pdfMake.vfs) {
+  // Fallback if the expected structure is on the .default export of the namespace
   (pdfMake as any).vfs = (pdfFontsModule as any).default.pdfMake.vfs;
-} else {
-  console.error("Failed to load pdfMake VFS fonts. pdfFontsModule structure:", pdfFontsModule);
+}
+else {
+  console.error("Failed to load pdfMake VFS fonts in Reading Forms. pdfFontsModule structure:", pdfFontsModule);
 }
 
 
@@ -146,7 +149,7 @@ export default function ReadingFormsPage() {
       return;
     }
      if (!(pdfMake as any).vfs) {
-      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF without VFS fonts. Check console.", variant: "destructive" });
+      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF without VFS fonts. Check console and ensure fonts are loaded correctly.", variant: "destructive" });
       return;
     }
     setIsExportingPdf(true);
