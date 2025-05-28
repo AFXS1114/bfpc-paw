@@ -14,12 +14,13 @@ import {
   SidebarHeader,
   SidebarContent,
   SidebarFooter,
-  SidebarInset, // Added SidebarInset to imports
+  SidebarInset,
 } from '@/components/ui/sidebar';
 import { AppLogo } from '@/components/app-logo';
 import { MainNavigation } from '@/components/main-navigation';
 import { Button } from '@/components/ui/button';
-import { UserCircle, Loader2 } from 'lucide-react';
+import { Loader2, LogOut } from 'lucide-react'; // Changed UserCircle to LogOut
+import { useToast } from '@/hooks/use-toast'; // Added useToast import
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -31,11 +32,6 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-// export const metadata: Metadata = { // Cannot use static metadata with "use client"
-//   title: 'PAW - Power & Water Management',
-//   description: 'Record and manage power and water billing.',
-// };
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -43,19 +39,28 @@ export default function RootLayout({
 }>) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isVerifying, setIsVerifying] = useState(true); // Start with verifying state
+  const [isVerifying, setIsVerifying] = useState(true);
+  const { toast } = useToast(); // Initialize useToast
 
   useEffect(() => {
-    // Set document title dynamically
     document.title = 'PAW - Power & Water Management';
 
     const isVerified = localStorage.getItem('pawUserVerified') === 'true';
     if (!isVerified && pathname !== '/login') {
       router.replace('/login');
     } else {
-      setIsVerifying(false); // Verification done
+      setIsVerifying(false);
     }
   }, [pathname, router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('pawUserVerified');
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+    router.push('/login');
+  };
 
   if (isVerifying && pathname !== '/login') {
     return (
@@ -94,9 +99,9 @@ export default function RootLayout({
                   <MainNavigation />
                 </SidebarContent>
                 <SidebarFooter className="p-2 border-t">
-                  <Button variant="ghost" className="w-full justify-start gap-2">
-                    <UserCircle className="h-5 w-5" />
-                    <span>Profile</span>
+                  <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleLogout}>
+                    <LogOut className="h-5 w-5" />
+                    <span>Logout</span>
                   </Button>
                 </SidebarFooter>
               </Sidebar>
