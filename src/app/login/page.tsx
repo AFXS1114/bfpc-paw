@@ -94,19 +94,43 @@ export default function LoginPage() {
       const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
       const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
 
-      if (!serviceId || !templateId || !publicKey) {
-        console.error("EmailJS environment variables are not set.");
-        toast({
-          title: "Configuration Error",
-          description: "Email sending service is not configured. Please contact support.",
-          variant: "destructive",
-        });
+      // Pre-flight checks for EmailJS config
+      if (!serviceId || typeof serviceId !== 'string') {
+        console.error("EmailJS Service ID is not configured or not a string.");
+        toast({ title: "Configuration Error", description: "Email sending service ID is missing. Please contact support.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+      if (!templateId || typeof templateId !== 'string') {
+        console.error("EmailJS Template ID is not configured or not a string.");
+        toast({ title: "Configuration Error", description: "Email sending template ID is missing. Please contact support.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+      if (!publicKey || typeof publicKey !== 'string') {
+        console.error("EmailJS Public Key is not configured or not a string.");
+        toast({ title: "Configuration Error", description: "Email sending public key is missing. Please contact support.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
 
+      // Pre-flight checks for template parameters
+      if (!userDoc.name || typeof userDoc.name !== 'string') {
+        console.error("User name is missing or not a string for template params.", userDoc);
+        toast({ title: "Data Error", description: "User data (name) is incomplete for sending email. Please contact support.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+      if (!userDoc.passcode || typeof userDoc.passcode !== 'string') {
+        console.error("User passcode is missing or not a string for template params.", userDoc);
+        toast({ title: "Data Error", description: "User data (passcode) is incomplete for sending email. Please contact support.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+      // data.email is validated by Zod schema, so it should be fine.
+
       const templateParams = {
-        to_email: data.email, // Use the email from the form input directly
+        to_email: data.email,
         user_name: userDoc.name,
         passcode: userDoc.passcode,
       };
@@ -120,14 +144,27 @@ export default function LoginPage() {
       setStep("passcode");
     } catch (error: any) {
       console.error("Error during email submission or sending email: ", error);
-      let errorMessage = "An error occurred. Please try again.";
-      if (error && typeof error === 'object' && 'status' in error && 'text' in error) {
-        errorMessage = `Failed to send passcode email. Error: ${error.text} (Status: ${error.status})`;
+      let errorMessage = "An error occurred while trying to send the passcode email. Please try again.";
+      
+      if (error && typeof error === 'object') {
+        if ('status' in error && 'text' in error) {
+          errorMessage = `Failed to send passcode email. Server responded with: ${error.text} (Status: ${error.status})`;
+        } else if (Object.keys(error).length === 0) {
+          errorMessage = "Failed to send passcode email. Received an empty error response. This might be due to incorrect EmailJS service/template IDs, user parameters, or network issues. Please verify your EmailJS setup and template variables.";
+        } else {
+          try {
+            const errorString = JSON.stringify(error);
+            errorMessage = `Failed to send passcode email. Unexpected error: ${errorString}. Please contact support.`;
+          } catch (e) {
+            errorMessage = "Failed to send passcode email. An unknown and unstringifiable error occurred. Please contact support.";
+          }
+        }
       } else if (error instanceof Error) {
-        errorMessage = error.message;
+        errorMessage = `Failed to send passcode email: ${error.message}. Please contact support.`;
       }
+      
       toast({
-        title: "Error",
+        title: "Error Sending Email",
         description: errorMessage,
         variant: "destructive",
       });
@@ -144,7 +181,7 @@ export default function LoginPage() {
         title: "Verification Successful",
         description: "You are now logged in.",
       });
-      router.push("/"); // Redirect to dashboard or main app page
+      router.push("/"); 
     } else {
       toast({
         title: "Invalid Passcode",
