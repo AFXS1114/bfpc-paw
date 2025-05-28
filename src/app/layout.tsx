@@ -22,6 +22,8 @@ import { Button } from '@/components/ui/button';
 import { Loader2, LogOut } from 'lucide-react'; 
 import { useToast } from '@/hooks/use-toast';
 import type { AppUserRole } from '@/types';
+import { db } from "@/lib/firebase"; // Firestore instance
+import { doc, updateDoc } from "firebase/firestore"; // For updating documents
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -34,6 +36,35 @@ const geistMono = Geist_Mono({
 });
 
 const RESTRICTED_PATHS_FOR_BILLING_OFFICER: string[] = ['/manage-records', '/billing'];
+
+function generateNewPasscode(length: number = 6): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+}
+
+async function renewUserPasscode(userId: string) {
+  if (!userId) {
+    console.error("Passcode renewal: User ID is missing.");
+    return;
+  }
+  try {
+    const newPasscode = generateNewPasscode(6);
+    const userRef = doc(db, "app-users", userId);
+    await updateDoc(userRef, {
+      passcode: newPasscode,
+    });
+    console.log(`Passcode renewed for user ${userId}`);
+  } catch (error) {
+    console.error("Error renewing passcode for user:", userId, error);
+    // Optionally, you could show a non-critical toast here if needed,
+    // but typically background errors for logout are just logged.
+  }
+}
+
 
 export default function RootLayout({
   children,
@@ -61,17 +92,24 @@ export default function RootLayout({
         description: "You do not have permission to access this page.",
         variant: "destructive",
       });
-      router.replace('/'); // Redirect to dashboard or a safe page
-      // Keep isVerifying true until redirect completes or show loading overlay
+      router.replace('/'); 
     }
      else {
       setIsVerifying(false);
     }
   }, [pathname, router, toast]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const currentRole = localStorage.getItem('pawUserRole') as AppUserRole | null;
+    const currentUserId = localStorage.getItem('pawUserId');
+
+    if (currentRole === 'billing-officer' && currentUserId) {
+      await renewUserPasscode(currentUserId); // Attempt to renew passcode
+    }
+
     localStorage.removeItem('pawUserVerified');
-    localStorage.removeItem('pawUserRole'); // Clear user role on logout
+    localStorage.removeItem('pawUserRole'); 
+    localStorage.removeItem('pawUserId'); // Clear user ID
     setUserRole(null);
     toast({
       title: "Logged Out",
@@ -134,3 +172,5 @@ export default function RootLayout({
     </html>
   );
 }
+
+    

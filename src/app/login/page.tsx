@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, limit } from "firebase/firestore";
+import { collection, query, where, getDocs, limit, doc, updateDoc } from "firebase/firestore";
 import type { AppUserDocument } from "@/types";
 import { Mail, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { AppLogo } from "@/components/app-logo";
@@ -114,8 +114,9 @@ export default function LoginPage() {
         return;
       }
       if (!templateId || typeof templateId !== 'string') {
-        console.error("EmailJS Template ID is not configured or not a string.");
-        toast({ title: "Configuration Error", description: "Email sending template ID is missing. Check .env.local.", variant: "destructive" });
+        const currentTemplateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
+        console.error("EmailJS Template ID is not configured or not a string. Value:", currentTemplateId);
+        toast({ title: "Configuration Error", description: `Email sending template ID (currently: ${currentTemplateId || 'NOT_SET'}) is missing or invalid. Check .env.local.`, variant: "destructive", duration: 9000 });
         setIsLoading(false);
         return;
       }
@@ -139,7 +140,7 @@ export default function LoginPage() {
       }
 
       const templateParams = {
-        to_email: trimmedEmail,
+        to_email: trimmedEmail, // Use the validated and trimmed email from the form
         user_name: userDoc.name,
         passcode: userDoc.passcode,
       };
@@ -154,18 +155,18 @@ export default function LoginPage() {
       setStep("passcode");
     } catch (error: any) {
       console.error("Error during email submission or sending email: ", error);
-      const currentTemplateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
+      const currentTemplateIdValue = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID; // Get value for message
       let errorMessage = "An error occurred while trying to send the passcode email. Please try again.";
       
       if (error && typeof error === 'object') {
         if ('status' in error && 'text' in error) {
-          if (error.status === 422 && error.text === "The recipients address is empty") {
-            errorMessage = `Failed to send email: EmailJS reports "The recipients address is empty". This means the 'To Email' field in your EmailJS template (ID: ${currentTemplateId || 'NOT_FOUND'}) on the EmailJS website is likely not configured to use '{{to_email}}' as the recipient. Please verify your EmailJS template settings.`;
+           if (error.status === 422 && error.text === "The recipients address is empty") {
+            errorMessage = `Failed to send email: EmailJS reports "The recipients address is empty". This likely means the 'To Email' field in your EmailJS template (ID: ${currentTemplateIdValue || 'NOT_FOUND'}) on the EmailJS website is not correctly set to use '{{to_email}}'. Please verify your EmailJS template settings.`;
           } else {
             errorMessage = `Failed to send passcode email. Server responded with: ${error.text} (Status: ${error.status})`;
           }
         } else if (Object.keys(error).length === 0) { 
-          errorMessage = "Failed to send passcode email. Received an empty error response. This might be due to incorrect EmailJS service/template IDs, user parameters, or network issues. Please verify your EmailJS setup and template variables.";
+           errorMessage = `Failed to send passcode email. Received an empty error response. This might be due to incorrect EmailJS service/template IDs (Template ID: ${currentTemplateIdValue || 'NOT_FOUND'}), user parameters, or network issues. Please verify your EmailJS setup and template variables.`;
         } else {
           try {
             const errorString = JSON.stringify(error);
@@ -182,7 +183,7 @@ export default function LoginPage() {
         title: "Error Sending Email",
         description: errorMessage,
         variant: "destructive",
-        duration: 9000, 
+        duration: 12000, // Increased duration for complex error messages
       });
     } finally {
       setIsLoading(false);
@@ -193,7 +194,8 @@ export default function LoginPage() {
     setIsLoading(true);
     if (storedUser && data.passcode === storedUser.passcode) {
       localStorage.setItem("pawUserVerified", "true");
-      localStorage.setItem("pawUserRole", storedUser.role); // Store user role
+      localStorage.setItem("pawUserRole", storedUser.role);
+      localStorage.setItem("pawUserId", storedUser.id); // Store user ID
       toast({
         title: "Verification Successful",
         description: "You are now logged in.",
@@ -318,3 +320,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    

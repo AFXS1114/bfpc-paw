@@ -1,10 +1,9 @@
-
 "use client";
 
 import type { ChangeEvent } from 'react';
 import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
-import { Button, buttonVariants } from "@/components/ui/button"; // Added buttonVariants import
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -42,11 +41,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { Trash2, Search, XCircle, Loader2 } from "lucide-react";
+import { Trash2, Search, XCircle, Loader2, ListFilter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, Timestamp, DocumentData, QueryConstraint, deleteDoc, doc } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument } from "@/types";
+import type { ClientDocument, PowerReadingDocument, MotherBillDocument } from "@/types";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -59,12 +58,22 @@ const ALL_CLIENTS_SELECT_ITEM_VALUE = "__all_clients__";
 const ANY_MONTH_SELECT_ITEM_VALUE = "__any_month__";
 const ANY_YEAR_SELECT_ITEM_VALUE = "__any_year__";
 
+type RecordType = "powerReadings" | "powerMotherBills";
+
+interface RecordToDelete {
+  id: string;
+  type: RecordType;
+  displayText: string;
+}
+
 export default function ManageRecordsPage() {
   const { toast } = useToast();
   const [clients, setClients] = useState<ClientDocument[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
-  const [powerReadings, setPowerReadings] = useState<PowerReadingDocument[]>([]);
-  const [isLoadingReadings, setIsLoadingReadings] = useState(true);
+  
+  const [records, setRecords] = useState<(PowerReadingDocument | MotherBillDocument)[]>([]);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+  const [selectedRecordType, setSelectedRecordType] = useState<RecordType>("powerReadings");
 
   const [filterClientId, setFilterClientId] = useState<string>("");
   const [filterBillingMonth, setFilterBillingMonth] = useState<string>("");
@@ -72,7 +81,7 @@ export default function ManageRecordsPage() {
 
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false);
-  const [recordToDeleteId, setRecordToDeleteId] = useState<string | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<RecordToDelete | null>(null);
 
   // Fetch clients for the filter dropdown
   useEffect(() => {
@@ -93,69 +102,91 @@ export default function ManageRecordsPage() {
     return () => unsubscribe();
   }, [toast]);
 
-  // Fetch and filter power readings
+  // Fetch records based on selected type and filters
   useEffect(() => {
-    setIsLoadingReadings(true);
-    let readingsQueryConstraints: QueryConstraint[] = [];
+    setIsLoadingRecords(true);
+    let recordsQueryConstraints: QueryConstraint[] = [];
+    let collectionName = "";
 
-    if (filterClientId && filterClientId !== ALL_CLIENTS_SELECT_ITEM_VALUE) {
-      readingsQueryConstraints.push(where("clientId", "==", filterClientId));
+    if (selectedRecordType === "powerReadings") {
+      collectionName = "power-readings";
+      if (filterClientId && filterClientId !== ALL_CLIENTS_SELECT_ITEM_VALUE) {
+        recordsQueryConstraints.push(where("clientId", "==", filterClientId));
+      }
+    } else if (selectedRecordType === "powerMotherBills") {
+      collectionName = "mother-bills";
+      recordsQueryConstraints.push(where("utilityType", "==", "power"));
     }
+
     if (filterBillingMonth && filterBillingMonth !== ANY_MONTH_SELECT_ITEM_VALUE) {
-      readingsQueryConstraints.push(where("billingMonth", "==", filterBillingMonth));
+      recordsQueryConstraints.push(where("billingMonth", "==", filterBillingMonth));
     }
     if (filterBillingYear && filterBillingYear !== ANY_YEAR_SELECT_ITEM_VALUE) {
-      readingsQueryConstraints.push(where("billingYear", "==", parseInt(filterBillingYear, 10)));
+      recordsQueryConstraints.push(where("billingYear", "==", parseInt(filterBillingYear, 10)));
     }
 
-    const finalQuery = query(collection(db, "power-readings"), ...readingsQueryConstraints, orderBy("createdAt", "desc"));
+    if (!collectionName) {
+        setRecords([]);
+        setIsLoadingRecords(false);
+        return;
+    }
+    
+    const finalQuery = query(collection(db, collectionName), ...recordsQueryConstraints, orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(finalQuery, (querySnapshot) => {
-      const readingsData = querySnapshot.docs.map(doc => {
-        const data = doc.data() as DocumentData;
-        return {
-          id: doc.id,
+      const fetchedRecords = querySnapshot.docs.map(docSnapshot => {
+        const data = docSnapshot.data() as DocumentData;
+        const baseData = {
+          id: docSnapshot.id,
           ...data,
-          dateBilled: (data.dateBilled as Timestamp)?.toDate(), // Convert Timestamp to Date
-          createdAt: (data.createdAt as Timestamp)?.toDate(), // Convert Timestamp to Date
-        } as PowerReadingDocument;
+          createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
+        };
+        if (selectedRecordType === "powerReadings") {
+          return {
+            ...baseData,
+            dateBilled: (data.dateBilled as Timestamp)?.toDate ? (data.dateBilled as Timestamp).toDate() : new Date(),
+          } as PowerReadingDocument;
+        } else {
+          return baseData as MotherBillDocument;
+        }
       });
-      setPowerReadings(readingsData);
-      setIsLoadingReadings(false);
+      setRecords(fetchedRecords);
+      setIsLoadingRecords(false);
     }, (error) => {
-      console.error("Error fetching power readings: ", error);
-      toast({ title: "Error", description: "Failed to fetch power readings.", variant: "destructive" });
-      setIsLoadingReadings(false);
+      console.error(`Error fetching ${selectedRecordType}: `, error);
+      toast({ title: "Error", description: `Failed to fetch ${selectedRecordType === 'powerReadings' ? 'power readings' : 'power mother bills'}.`, variant: "destructive" });
+      setIsLoadingRecords(false);
     });
 
     return () => unsubscribe();
-  }, [toast, filterClientId, filterBillingMonth, filterBillingYear]);
+  }, [toast, selectedRecordType, filterClientId, filterBillingMonth, filterBillingYear]);
 
 
-  const handleDeleteClick = (readingId: string) => {
-    setRecordToDeleteId(readingId);
+  const handleDeleteClick = (recordId: string, type: RecordType, displayText: string) => {
+    setRecordToDelete({ id: recordId, type, displayText });
     setShowDeleteConfirmDialog(true);
   };
 
   const confirmDelete = async () => {
-    if (!recordToDeleteId) return;
-    setIsDeletingId(recordToDeleteId);
+    if (!recordToDelete) return;
+    setIsDeletingId(recordToDelete.id);
     try {
-      await deleteDoc(doc(db, "power-readings", recordToDeleteId));
+      const collectionName = recordToDelete.type === "powerReadings" ? "power-readings" : "mother-bills";
+      await deleteDoc(doc(db, collectionName, recordToDelete.id));
       toast({
         title: "Record Deleted",
-        description: "The power reading record has been successfully deleted.",
+        description: `The ${recordToDelete.displayText} has been successfully deleted.`,
       });
     } catch (error) {
-      console.error("Error deleting power reading: ", error);
+      console.error("Error deleting record: ", error);
       toast({
         title: "Error",
-        description: "Failed to delete power reading record.",
+        description: `Failed to delete ${recordToDelete.displayText}.`,
         variant: "destructive",
       });
     } finally {
       setShowDeleteConfirmDialog(false);
-      setRecordToDeleteId(null);
+      setRecordToDelete(null);
       setIsDeletingId(null);
     }
   };
@@ -167,48 +198,71 @@ export default function ManageRecordsPage() {
   };
   
   const hasActiveFilters = useMemo(() => {
-    return (filterClientId && filterClientId !== ALL_CLIENTS_SELECT_ITEM_VALUE) || 
+    return (selectedRecordType === "powerReadings" && filterClientId && filterClientId !== ALL_CLIENTS_SELECT_ITEM_VALUE) || 
            (filterBillingMonth && filterBillingMonth !== ANY_MONTH_SELECT_ITEM_VALUE) || 
            (filterBillingYear && filterBillingYear !== ANY_YEAR_SELECT_ITEM_VALUE);
-  }, [filterClientId, filterBillingMonth, filterBillingYear]);
+  }, [selectedRecordType, filterClientId, filterBillingMonth, filterBillingYear]);
 
+  const getRecordDisplayText = (record: PowerReadingDocument | MotherBillDocument, type: RecordType): string => {
+    if (type === "powerReadings") {
+        const pr = record as PowerReadingDocument;
+        return `power reading for ${pr.clientName} (${pr.billingMonth} ${pr.billingYear})`;
+    } else {
+        const mb = record as MotherBillDocument;
+        return `power mother bill for ${mb.billingMonth} ${mb.billingYear}`;
+    }
+  };
 
   return (
     <main className="flex flex-1 flex-col">
-      <PageHeader title="Manage Records - Power Readings" />
+      <PageHeader title="Manage Records" />
       <div className="flex-1 space-y-6 p-4 md:p-6">
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Search className="h-6 w-6 text-primary" />
-              Filter Power Readings
+              <ListFilter className="h-6 w-6 text-primary" />
+              Filter Records
             </CardTitle>
             <CardDescription>
-              Refine the list of power readings to manage.
+              Select record type and apply filters to refine the list.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="filter-client">Client Name</Label>
-                <Select
-                  value={filterClientId || ALL_CLIENTS_SELECT_ITEM_VALUE}
-                  onValueChange={val => setFilterClientId(val === ALL_CLIENTS_SELECT_ITEM_VALUE ? "" : val)}
-                  disabled={isLoadingClients}
-                >
-                  <SelectTrigger id="filter-client" className="mt-1">
-                    <SelectValue placeholder={isLoadingClients ? "Loading..." : "All Clients"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem key={ALL_CLIENTS_SELECT_ITEM_VALUE} value={ALL_CLIENTS_SELECT_ITEM_VALUE}>All Clients</SelectItem>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.clientName} ({client.stallNo})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+            <div>
+                <Label htmlFor="select-record-type">Record Type</Label>
+                <Select value={selectedRecordType} onValueChange={(value) => setSelectedRecordType(value as RecordType)}>
+                    <SelectTrigger id="select-record-type" className="mt-1">
+                        <SelectValue placeholder="Select record type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="powerReadings">Power Readings (Client)</SelectItem>
+                        <SelectItem value="powerMotherBills">Mother Bills (Power)</SelectItem>
+                    </SelectContent>
                 </Select>
-              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {selectedRecordType === "powerReadings" && (
+                <div>
+                  <Label htmlFor="filter-client">Client Name</Label>
+                  <Select
+                    value={filterClientId || ALL_CLIENTS_SELECT_ITEM_VALUE}
+                    onValueChange={val => setFilterClientId(val === ALL_CLIENTS_SELECT_ITEM_VALUE ? "" : val)}
+                    disabled={isLoadingClients}
+                  >
+                    <SelectTrigger id="filter-client" className="mt-1">
+                      <SelectValue placeholder={isLoadingClients ? "Loading..." : "All Clients"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_CLIENTS_SELECT_ITEM_VALUE}>All Clients</SelectItem>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.clientName} ({client.stallNo})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label htmlFor="filter-billing-month">Billing Month</Label>
                 <Select 
@@ -219,7 +273,7 @@ export default function ManageRecordsPage() {
                     <SelectValue placeholder="Any Month" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem key={ANY_MONTH_SELECT_ITEM_VALUE} value={ANY_MONTH_SELECT_ITEM_VALUE}>Any Month</SelectItem>
+                    <SelectItem value={ANY_MONTH_SELECT_ITEM_VALUE}>Any Month</SelectItem>
                     {MONTHS.map((month) => (
                       <SelectItem key={month} value={month}>{month}</SelectItem>
                     ))}
@@ -236,7 +290,7 @@ export default function ManageRecordsPage() {
                     <SelectValue placeholder="Any Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem key={ANY_YEAR_SELECT_ITEM_VALUE} value={ANY_YEAR_SELECT_ITEM_VALUE}>Any Year</SelectItem>
+                     <SelectItem value={ANY_YEAR_SELECT_ITEM_VALUE}>Any Year</SelectItem>
                     {YEARS.map((year) => (
                       <SelectItem key={year.toString()} value={year.toString()}>{year}</SelectItem>
                     ))}
@@ -255,50 +309,81 @@ export default function ManageRecordsPage() {
 
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle>Power Reading Records</CardTitle>
+            <CardTitle>
+                {selectedRecordType === "powerReadings" ? "Power Reading Records" : "Power Mother Bill Records"}
+            </CardTitle>
             <CardDescription>
-              List of power readings based on active filters. Click delete to remove a record.
+              List of records based on active filters. Click delete to remove a record.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingReadings ? (
+            {isLoadingRecords ? (
               <div className="space-y-4">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
               </div>
-            ) : powerReadings.length === 0 ? (
-              <p className="text-muted-foreground text-center">No power readings found matching your criteria.</p>
+            ) : records.length === 0 ? (
+              <p className="text-muted-foreground text-center">No records found matching your criteria.</p>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Client Name</TableHead>
-                    <TableHead>Stall No.</TableHead>
-                    <TableHead>Date Billed</TableHead>
-                    <TableHead>Billing Period</TableHead>
-                    <TableHead className="text-right">Total (kWh)</TableHead>
-                    <TableHead>Recorded On</TableHead>
-                    <TableHead className="text-center">Actions</TableHead>
-                  </TableRow>
+                  {selectedRecordType === "powerReadings" ? (
+                    <TableRow>
+                      <TableHead>Client Name</TableHead>
+                      <TableHead>Stall No.</TableHead>
+                      <TableHead>Date Billed</TableHead>
+                      <TableHead>Billing Period</TableHead>
+                      <TableHead className="text-right">Total (kWh)</TableHead>
+                      <TableHead>Recorded On</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
+                    </TableRow>
+                  ) : ( // powerMotherBills
+                    <TableRow>
+                      <TableHead>Billing Period</TableHead>
+                      <TableHead className="text-right">Past (kWh)</TableHead>
+                      <TableHead className="text-right">Present (kWh)</TableHead>
+                      <TableHead className="text-right">Total Cons. (kWh)</TableHead>
+                      <TableHead className="text-right">Amount (₱)</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead>Recorded On</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
+                    </TableRow>
+                  )}
                 </TableHeader>
                 <TableBody>
-                  {powerReadings.map((reading) => (
-                    <TableRow key={reading.id}>
-                      <TableCell>{reading.clientName}</TableCell>
-                      <TableCell>{reading.stallNo}</TableCell>
-                      <TableCell>{reading.dateBilled ? format(new Date(reading.dateBilled), "MMM dd, yyyy") : 'N/A'}</TableCell>
-                      <TableCell>{reading.billingMonth} {reading.billingYear}</TableCell>
-                      <TableCell className="text-right font-semibold">{reading.totalKwh.toLocaleString()}</TableCell>
-                      <TableCell>{reading.createdAt ? format(new Date(reading.createdAt), "MMM dd, yyyy, HH:mm") : 'N/A'}</TableCell>
+                  {records.map((record) => (
+                    <TableRow key={record.id}>
+                      {selectedRecordType === "powerReadings" ? (
+                        <>
+                          <TableCell>{(record as PowerReadingDocument).clientName}</TableCell>
+                          <TableCell>{(record as PowerReadingDocument).stallNo}</TableCell>
+                          <TableCell>{(record as PowerReadingDocument).dateBilled ? format(new Date((record as PowerReadingDocument).dateBilled), "MMM dd, yyyy") : 'N/A'}</TableCell>
+                          <TableCell>{(record as PowerReadingDocument).billingMonth} {(record as PowerReadingDocument).billingYear}</TableCell>
+                          <TableCell className="text-right font-semibold">{(record as PowerReadingDocument).totalKwh.toLocaleString()}</TableCell>
+                          <TableCell>{record.createdAt ? format(new Date(record.createdAt), "MMM dd, yyyy, HH:mm") : 'N/A'}</TableCell>
+                        </>
+                      ) : ( // powerMotherBills
+                        <>
+                          <TableCell>{(record as MotherBillDocument).billingMonth} {(record as MotherBillDocument).billingYear}</TableCell>
+                          <TableCell className="text-right">{(record as MotherBillDocument).pastReading.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(record as MotherBillDocument).presentReading.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-semibold">{(record as MotherBillDocument).totalConsumption.toLocaleString()}</TableCell>
+                           <TableCell className="text-right">
+                            {(record as MotherBillDocument).totalAmountBilled.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="max-w-[150px] truncate" title={(record as MotherBillDocument).notes}>{(record as MotherBillDocument).notes || "-"}</TableCell>
+                          <TableCell>{record.createdAt ? format(new Date(record.createdAt), "MMM dd, yyyy, HH:mm") : 'N/A'}</TableCell>
+                        </>
+                      )}
                       <TableCell className="text-center">
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => reading.id && handleDeleteClick(reading.id)}
-                          disabled={!reading.id || isDeletingId === reading.id}
+                          onClick={() => record.id && handleDeleteClick(record.id, selectedRecordType, getRecordDisplayText(record, selectedRecordType))}
+                          disabled={!record.id || isDeletingId === record.id}
                         >
-                          {isDeletingId === reading.id ? (
+                          {isDeletingId === record.id ? (
                             <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                           ) : (
                             <Trash2 className="mr-1 h-3 w-3" />
@@ -320,12 +405,12 @@ export default function ManageRecordsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the power reading record.
+              This action cannot be undone. This will permanently delete the {recordToDelete?.displayText || "record"}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setRecordToDeleteId(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className={buttonVariants({ variant: "destructive" })}>
+            <AlertDialogCancel onClick={() => setRecordToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className={cn(buttonVariants({ variant: "destructive" }), "bg-destructive hover:bg-destructive/90")}>
               Yes, delete record
             </AlertDialogAction>
           </AlertDialogFooter>
