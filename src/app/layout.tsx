@@ -14,6 +14,7 @@ import {
   SidebarHeader,
   SidebarContent,
   SidebarFooter,
+  SidebarInset, // Added SidebarInset to imports
 } from '@/components/ui/sidebar';
 import { AppLogo } from '@/components/app-logo';
 import { MainNavigation } from '@/components/main-navigation';
