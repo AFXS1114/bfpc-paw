@@ -106,7 +106,7 @@ export default function LoginPage() {
       }
 
       const templateParams = {
-        to_email: userDoc.email,
+        to_email: data.email, // Use the email from the form input directly
         user_name: userDoc.name,
         passcode: userDoc.passcode,
       };
@@ -118,11 +118,17 @@ export default function LoginPage() {
         description: "A passcode has been sent to your email address.",
       });
       setStep("passcode");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error during email submission or sending email: ", error);
+      let errorMessage = "An error occurred. Please try again.";
+      if (error && typeof error === 'object' && 'status' in error && 'text' in error) {
+        errorMessage = `Failed to send passcode email. Error: ${error.text} (Status: ${error.status})`;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       toast({
         title: "Error",
-        description: "An error occurred. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
