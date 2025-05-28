@@ -34,6 +34,7 @@ import { collection, query, where, orderBy, onSnapshot, getDocs, Timestamp } fro
 import type { ClientDocument, PowerReadingDocument } from "@/types";
 import { FileText, Search, Loader2, Download, Eye } from "lucide-react";
 import { format, isValid } from "date-fns";
+
 import pdfMake from "pdfmake/build/pdfmake";
 import * as pdfFontsModule from "pdfmake/build/vfs_fonts";
 
@@ -383,5 +384,4 @@ export default function ReadingFormsPage() {
     </main>
   );
 }
-
     
