@@ -35,16 +35,30 @@ import type { ClientDocument, PowerReadingDocument } from "@/types";
 import { FileText, Search, Loader2, Download, Eye } from "lucide-react";
 import { format, isValid } from "date-fns";
 
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import pdfMake from "pdfmake/build/pdfmake";
+import pdfFonts from "pdfmake/build/vfs_fonts";
+
+// VFS Font loading
+if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
+  (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
+} else if (pdfFonts && (pdfFonts as any).default && (pdfFonts as any).default.pdfMake && (pdfFonts as any).default.pdfMake.vfs) {
+  (pdfMake as any).vfs = (pdfFonts as any).default.pdfMake.vfs;
+} else if (pdfFonts && typeof pdfFonts === 'object' && Object.keys(pdfFonts).length > 0 && !(pdfFonts as any).pdfMake) {
+    (pdfMake as any).vfs = pdfFonts;
+    if (!((pdfMake as any).vfs && Object.keys((pdfMake as any).vfs).length > 0)) {
+        (pdfMake as any).vfs = undefined;
+    }
+} else {
+  console.error("Failed to load pdfMake VFS fonts in Reading Forms. Structure of 'pdfFonts':", JSON.stringify(pdfFonts, null, 2));
+}
 
 
-const MONTHS = [
+const MONTHS_ARRAY = [ // Renamed to avoid conflict with MONTHS const
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
 const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i); // Last 5 years, current year, next 4 years
+const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
 
 interface MonthlyReadingDisplayData {
   month: string;
@@ -52,7 +66,7 @@ interface MonthlyReadingDisplayData {
   previousReading: number | null;
   presentReading: number | null;
   totalKwh: number | null;
-  notes: string | null;
+  notes: string | null; // Keep for on-screen display
 }
 
 export default function ReadingFormsPage() {
@@ -112,7 +126,7 @@ export default function ReadingFormsPage() {
         } as PowerReadingDocument;
       });
 
-      const processedReadings: MonthlyReadingDisplayData[] = MONTHS.map(monthName => {
+      const processedReadings: MonthlyReadingDisplayData[] = MONTHS_ARRAY.map(monthName => {
         const readingForMonth = fetchedReadings.find(r => r.billingMonth === monthName);
         return {
           month: monthName,
@@ -138,47 +152,123 @@ export default function ReadingFormsPage() {
       toast({ title: "No Data", description: "Generate the form data first.", variant: "destructive" });
       return;
     }
-    
-    const input = document.getElementById('reading-form-to-export');
-    if (!input) {
-      toast({ title: "Export Error", description: "Could not find the form content to export.", variant: "destructive" });
+    if (!(pdfMake as any).vfs) {
+      toast({ title: "PDF Export Error", description: "PDF fonts not loaded. Cannot generate PDF. Please refresh and try again.", variant: "destructive" });
+      console.error("pdfMake.vfs is not loaded. PDF generation aborted.");
       return;
     }
-
+    
     setIsExportingPdf(true);
 
+    const readingsWithData = yearlyReadings.filter(reading => 
+        reading.previousReading !== null || 
+        reading.presentReading !== null || 
+        reading.totalKwh !== null
+    );
+
+    if (readingsWithData.length === 0) {
+        toast({ title: "No Data to Export", description: "No readings with data found for the selected client and year.", variant: "default" });
+        setIsExportingPdf(false);
+        return;
+    }
+
+    const tableBody: any[][] = [
+      [ // Headers
+        { text: 'Month', style: 'tableHeader' },
+        { text: 'Date Billed', style: 'tableHeader' },
+        { text: 'Prev. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
+        { text: 'Pres. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
+        { text: 'Total kWh', style: 'tableHeader', alignment: 'right' as const },
+      ]
+    ];
+
+    readingsWithData.forEach(reading => {
+      tableBody.push([
+        reading.month,
+        reading.dateBilled || 'N/A',
+        { text: reading.previousReading?.toLocaleString() ?? 'N/A', alignment: 'right' as const },
+        { text: reading.presentReading?.toLocaleString() ?? 'N/A', alignment: 'right' as const },
+        { text: reading.totalKwh?.toLocaleString() ?? 'N/A', alignment: 'right' as const, bold: true },
+      ]);
+    });
+
+    const documentDefinition: any = {
+      content: [
+        { text: 'CLIENT POWER READING FORM', style: 'title', alignment: 'center' as const },
+        { text: 'BULAN FISH PORT COMPLEX', style: 'subtitle', alignment: 'center' as const },
+        { text: 'Pier 2, Zone-4, Bulan, Sorsogon', style: 'small', alignment: 'center' as const, margin: [0, 0, 0, 10] as const },
+        {
+          columns: [
+            [
+              { text: `Client Name: ${selectedClientDetails.clientName}`, style: 'info' },
+              { text: `Stall No: ${selectedClientDetails.stallNo}`, style: 'info' },
+            ],
+            [
+              { text: `Meter No: ${selectedClientDetails.powerMeterNo}`, style: 'info', alignment: 'right' as const },
+              { text: `Year: ${selectedYear}`, style: 'info', alignment: 'right' as const },
+            ]
+          ],
+          margin: [0, 0, 0, 10] as const
+        },
+        {
+          table: {
+            widths: ['*', 'auto', 'auto', 'auto', 'auto'], // Adjusted for 5 columns
+            body: tableBody,
+          },
+          layout: {
+            hLineWidth: function (i: number, node: any) { return (i === 0 || i === node.table.body.length) ? 0.5 : 0.5; },
+            vLineWidth: function (i: number, node: any) { return 0.5; },
+            hLineColor: function (i: number, node: any) { return '#BFBFBF'; },
+            vLineColor: function (i: number, node: any) { return '#BFBFBF'; },
+            paddingLeft: function(i: number, node: any) { return 4; },
+            paddingRight: function(i: number, node: any) { return 4; },
+            paddingTop: function(i: number, node: any) { return 2; },
+            paddingBottom: function(i: number, node: any) { return 2; }
+         }
+        },
+        {
+            columns: [
+                {
+                    stack: [
+                        { text: 'Readings Performed By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
+                        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
+                        { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
+                    ],
+                    width: '50%',
+                },
+                {
+                    stack: [
+                        { text: 'Checked By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
+                        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
+                        { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
+                    ],
+                    width: '50%',
+                }
+            ],
+            columnGap: 20,
+            margin: [0, 10, 0, 0] as const,
+        }
+      ],
+      styles: {
+        title: { fontSize: 14, bold: true, color: '#1E40AF', margin: [0, 0, 0, 2] as const },
+        subtitle: { fontSize: 10, bold: true, margin: [0, 0, 0, 1] as const },
+        info: { fontSize: 9, margin: [0, 1, 0, 1] as const },
+        tableHeader: { bold: true, fontSize: 8.5, color: '#1F2937' },
+        small: { fontSize: 8, color: '#4A4A4A' },
+        signatureLabel: { fontSize: 9, bold: false },
+        signatureSublabel: { fontSize: 7, italics: true, color: '#555555' },
+      },
+      defaultStyle: {
+        fontSize: 8.5,
+        lineHeight: 1.2,
+        font: "Roboto", // Ensure Roboto is loaded or use a default like 'Helvetica'
+      },
+      pageSize: 'A4',
+      pageMargins: [40, 40, 40, 40],
+    };
+
     try {
-      const canvas = await html2canvas(input, {
-        scale: 2, // Increase scale for better quality
-        useCORS: true,
-        logging: false,
-        windowWidth: input.scrollWidth,
-        windowHeight: input.scrollHeight,
-      });
-      const imgData = canvas.toDataURL('image/png');
-      
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'pt', // points
-        format: 'a4'
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      
-      const scaledWidth = imgWidth * ratio;
-      const scaledHeight = imgHeight * ratio;
-
-      // Center the image on the PDF page
-      const x = (pdfWidth - scaledWidth) / 2;
-      const y = 15; // Small top margin
-
-      pdf.addImage(imgData, 'PNG', x, y, scaledWidth, scaledHeight);
-      pdf.save(`ReadingForm-${selectedClientDetails.stallNo}-${selectedYear}.pdf`);
-      
+      pdfMake.createPdf(documentDefinition).download(`ReadingForm-${selectedClientDetails.stallNo}-${selectedYear}.pdf`);
       toast({ title: "PDF Exported", description: "Reading form has been downloaded." });
     } catch (e) {
       console.error("Error exporting PDF: ", e);
@@ -208,7 +298,7 @@ export default function ReadingFormsPage() {
                 <Label htmlFor="select-client">Client Name</Label>
                 <Select
                   value={selectedClientId}
-                  onValueChange={setSelectedClientId}
+                  onValueChange={(value) => { setSelectedClientId(value); setYearlyReadings(null); }}
                   disabled={isLoadingClients}
                 >
                   <SelectTrigger id="select-client" className="mt-1">
@@ -225,7 +315,10 @@ export default function ReadingFormsPage() {
               </div>
               <div>
                 <Label htmlFor="select-year">Year</Label>
-                 <Select value={selectedYear} onValueChange={setSelectedYear}>
+                 <Select 
+                    value={selectedYear} 
+                    onValueChange={(value) => { setSelectedYear(value); setYearlyReadings(null); }}
+                 >
                   <SelectTrigger id="select-year" className="mt-1">
                     <SelectValue placeholder="Select year" />
                   </SelectTrigger>
@@ -237,7 +330,7 @@ export default function ReadingFormsPage() {
                 </Select>
               </div>
             </div>
-            <Button onClick={handleGenerateForm} disabled={isLoadingForm || isLoadingClients || !selectedClientId}>
+            <Button onClick={handleGenerateForm} disabled={isLoadingForm || isLoadingClients || !selectedClientId || !selectedYear}>
               {isLoadingForm ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -274,9 +367,9 @@ export default function ReadingFormsPage() {
               </Button>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <div id="reading-form-to-export" className="p-4 bg-white text-black printable-area">
+              <div className="p-4 bg-background printable-area"> {/* Changed from bg-white text-black for theme consistency on screen */}
                 <div className="text-center mb-4">
-                  <h2 className="text-xl font-bold text-blue-700">CLIENT POWER READING FORM</h2>
+                  <h2 className="text-xl font-bold text-primary">CLIENT POWER READING FORM</h2>
                   <p className="text-sm">BULAN FISH PORT COMPLEX</p>
                   <p className="text-xs">Pier 2, Zone-4, Bulan, Sorsogon</p>
                 </div>
@@ -293,23 +386,23 @@ export default function ReadingFormsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-xs border border-gray-400 p-1">Month</TableHead>
-                      <TableHead className="text-xs border border-gray-400 p-1">Date Billed</TableHead>
-                      <TableHead className="text-right text-xs border border-gray-400 p-1">Prev. Reading</TableHead>
-                      <TableHead className="text-right text-xs border border-gray-400 p-1">Pres. Reading</TableHead>
-                      <TableHead className="text-right text-xs border border-gray-400 p-1">Total kWh</TableHead>
-                      <TableHead className="text-xs border border-gray-400 p-1">Notes</TableHead>
+                      <TableHead className="text-xs p-1">Month</TableHead>
+                      <TableHead className="text-xs p-1">Date Billed</TableHead>
+                      <TableHead className="text-right text-xs p-1">Prev. Reading</TableHead>
+                      <TableHead className="text-right text-xs p-1">Pres. Reading</TableHead>
+                      <TableHead className="text-right text-xs p-1">Total kWh</TableHead>
+                      <TableHead className="text-xs p-1">Notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {yearlyReadings.map((reading) => (
                       <TableRow key={reading.month}>
-                        <TableCell className="font-medium text-xs border border-gray-400 p-1">{reading.month}</TableCell>
-                        <TableCell className="text-xs border border-gray-400 p-1">{reading.dateBilled || 'N/A'}</TableCell>
-                        <TableCell className="text-right text-xs border border-gray-400 p-1">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
-                        <TableCell className="text-right text-xs border border-gray-400 p-1">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
-                        <TableCell className="text-right font-semibold text-xs border border-gray-400 p-1">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
-                        <TableCell className="max-w-[100px] truncate text-xs border border-gray-400 p-1" title={reading.notes || undefined}>{reading.notes || '-'}</TableCell>
+                        <TableCell className="font-medium text-xs p-1">{reading.month}</TableCell>
+                        <TableCell className="text-xs p-1">{reading.dateBilled || 'N/A'}</TableCell>
+                        <TableCell className="text-right text-xs p-1">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
+                        <TableCell className="text-right text-xs p-1">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
+                        <TableCell className="text-right font-semibold text-xs p-1">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
+                        <TableCell className="max-w-[100px] truncate text-xs p-1" title={reading.notes || undefined}>{reading.notes || '-'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -317,11 +410,11 @@ export default function ReadingFormsPage() {
                 <div className="mt-10 flex justify-around text-xs">
                     <div>
                         <p className="mb-12">Readings Performed By:</p>
-                        <p className="border-t border-gray-500 pt-1 text-center">(Signature over Printed Name)</p>
+                        <p className="border-t pt-1 text-center">(Signature over Printed Name)</p>
                     </div>
                     <div>
                         <p className="mb-12">Checked By:</p>
-                        <p className="border-t border-gray-500 pt-1 text-center">(Signature over Printed Name)</p>
+                        <p className="border-t pt-1 text-center">(Signature over Printed Name)</p>
                     </div>
                 </div>
               </div>
@@ -332,4 +425,3 @@ export default function ReadingFormsPage() {
     </main>
   );
 }
-    
