@@ -17,16 +17,18 @@ import {
 import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog, List, UploadCloud } from "lucide-react";
+import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog, List, UploadCloud, Eye } from "lucide-react"; // Added Eye
 import { importHistoricalMotherBills } from "@/lib/import-mother-bills";
 import { AddUserModal } from "@/components/add-user-modal";
 import { ViewUsersModal } from "@/components/view-users-modal"; 
 import { AddSignatoryModal } from "@/components/add-signatory-modal";
+import { ViewSignatoriesModal } from "@/components/view-signatories-modal"; // Import new modal
 import { AddReadingPerformerModal } from "@/components/add-reading-performer-modal";
+import { ViewReadingPerformersModal } from "@/components/view-reading-performers-modal"; // Import new modal
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, getDocs, limit, Timestamp } from "firebase/firestore";
 import type { PowerReadingEntry } from "@/types";
-// Removed direct import of reftech.json
+
 
 const MONTHS_FOR_PARSING = [
   "January", "February", "March", "April", "May", "June",
@@ -37,16 +39,18 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [isImporting, setIsImporting] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
-  const [isViewUsersModalOpen, setIsViewUsersModalOpen] = useState(false);
+  const [isViewUsersModalOpen, setIsViewUsersModalOpen] = useState(false); 
   const [isAddSignatoryModalOpen, setIsAddSignatoryModalOpen] = useState(false);
+  const [isViewSignatoriesModalOpen, setIsViewSignatoriesModalOpen] = useState(false); // New state
   const [isAddReadingPerformerModalOpen, setIsAddReadingPerformerModalOpen] = useState(false);
+  const [isViewReadingPerformersModalOpen, setIsViewReadingPerformersModalOpen] = useState(false); // New state
   const [userRole, setUserRole] = useState<AppUserRole | null>(null);
 
   const [clients, setClients] = useState<ClientDocument[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [selectedClientIdForImport, setSelectedClientIdForImport] = useState<string>("");
   const [isImportingClientReadings, setIsImportingClientReadings] = useState(false);
-  const [jsonInputString, setJsonInputString] = useState<string>(""); // State for pasted JSON
+  const [jsonInputString, setJsonInputString] = useState<string>(""); 
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -98,7 +102,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleImportPastedJsonReadings = async () => { // Renamed function
+  const handleImportPastedJsonReadings = async () => { 
     if (!selectedClientIdForImport) {
       toast({ title: "Client Not Selected", description: "Please select a client to assign these readings to.", variant: "destructive" });
       return;
@@ -198,8 +202,8 @@ export default function SettingsPage() {
       description: `${importedCount} records imported. ${skippedCount} records skipped (duplicates or errors).`,
     });
     setIsImportingClientReadings(false);
-    setJsonInputString(""); // Clear textarea
-    setSelectedClientIdForImport(""); // Clear selected client
+    setJsonInputString(""); 
+    setSelectedClientIdForImport(""); 
   };
 
 
@@ -231,7 +235,7 @@ export default function SettingsPage() {
               </CardTitle>
               <CardDescription>One-time data import utilities.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6"> {/* Increased spacing */}
+            <CardContent className="space-y-6"> 
               <div>
                 <h3 className="text-lg font-medium mb-1">Import Historical Mother Bills</h3>
                 <p className="text-sm text-muted-foreground mb-2">
@@ -254,7 +258,7 @@ export default function SettingsPage() {
                   The JSON should be an object where each key is an arbitrary ID and the value is an object with keys:
                   "BILLING MONTH" (e.g., "January 2023"), "Previous" (number), "Present" (number), and "KWH Used" (number).
                 </p>
-                <div className="space-y-4 max-w-lg"> {/* Increased max-width for better layout */}
+                <div className="space-y-4 max-w-lg"> 
                   <div>
                     <Label htmlFor="paste-json-data">Paste JSON Data Here</Label>
                     <Textarea
@@ -262,7 +266,7 @@ export default function SettingsPage() {
                       value={jsonInputString}
                       onChange={(e) => setJsonInputString(e.target.value)}
                       placeholder='{\n  "-ID1": { "BILLING MONTH": "January 2023", "Previous": 100, "Present": 200, "KWH Used": 100 },\n  "-ID2": { "BILLING MONTH": "February 2023", "Previous": 200, "Present": 350, "KWH Used": 150 }\n}'
-                      className="mt-1 min-h-[150px] font-mono text-xs" // Adjusted height
+                      className="mt-1 min-h-[150px] font-mono text-xs" 
                       disabled={isImportingClientReadings}
                     />
                   </div>
@@ -342,9 +346,14 @@ export default function SettingsPage() {
                 <UserCog className="mr-2 h-4 w-4" /> Add Reading Performer 
               </Button>
             </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Personnel lists and editing capabilities will be added here in the future.
-            </p>
+            <div className="flex flex-wrap gap-2 mt-2"> {/* Added mt-2 for spacing */}
+              <Button onClick={() => setIsViewSignatoriesModalOpen(true)} variant="ghost">
+                <Eye className="mr-2 h-4 w-4" /> View Signatories
+              </Button>
+              <Button onClick={() => setIsViewReadingPerformersModalOpen(true)} variant="ghost">
+                <Eye className="mr-2 h-4 w-4" /> View Reading Performers
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -361,9 +370,9 @@ export default function SettingsPage() {
       <AddUserModal isOpen={isAddUserModalOpen} onOpenChange={setIsAddUserModalOpen} />
       <ViewUsersModal isOpen={isViewUsersModalOpen} onOpenChange={setIsViewUsersModalOpen} /> 
       <AddSignatoryModal isOpen={isAddSignatoryModalOpen} onOpenChange={setIsAddSignatoryModalOpen} />
+      <ViewSignatoriesModal isOpen={isViewSignatoriesModalOpen} onOpenChange={setIsViewSignatoriesModalOpen} />
       <AddReadingPerformerModal isOpen={isAddReadingPerformerModalOpen} onOpenChange={setIsAddReadingPerformerModalOpen} />
+      <ViewReadingPerformersModal isOpen={isViewReadingPerformersModalOpen} onOpenChange={setIsViewReadingPerformersModalOpen} />
     </main>
   );
 }
-
-    
