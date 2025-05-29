@@ -53,6 +53,7 @@ export default function StatisticsPage() {
     setIsLoadingStats(true);
     setStatisticsData(null);
     setErrorMessage(null);
+    console.log("Fetching statistics for:", selectedBillingMonth, selectedBillingYear);
 
     try {
       // 1. Fetch Mother Bill (Power)
@@ -68,9 +69,11 @@ export default function StatisticsPage() {
       if (motherBillSnapshot.empty) {
         setErrorMessage(`No power mother bill found for ${selectedBillingMonth} ${selectedBillingYear}.`);
         setIsLoadingStats(false);
+        console.warn("Mother bill not found for the period.");
         return;
       }
       const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
+      console.log("Mother Bill Data:", motherBill);
 
       // 2. Fetch All Client Power Readings for the period
       const powerReadingsQuery = query(
@@ -80,6 +83,7 @@ export default function StatisticsPage() {
       );
       const powerReadingsSnapshot = await getDocs(powerReadingsQuery);
       const clientReadings = powerReadingsSnapshot.docs.map(doc => doc.data() as PowerReadingDocument);
+      console.log("Client Readings Data (count):", clientReadings.length, clientReadings);
 
       // 3. Calculations
       const motherBillTotalKwh = motherBill.totalConsumption;
@@ -87,25 +91,28 @@ export default function StatisticsPage() {
       const clientsTotalKwh = clientReadings.reduce((sum, reading) => sum + reading.totalKwh, 0);
       const officeKwh = motherBillTotalKwh - clientsTotalKwh;
       
+      console.log("Raw Calculation Inputs:");
+      console.log("  motherBill.totalConsumption (motherBillTotalKwh):", motherBillTotalKwh);
+      console.log("  motherBill.totalAmountBilled:", motherBillTotalAmountBilled);
+      console.log("  Sum of clientReadings.totalKwh (clientsTotalKwh):", clientsTotalKwh);
+
       let monthlyRate = 0;
       if (motherBillTotalKwh > 0) {
         monthlyRate = motherBillTotalAmountBilled / motherBillTotalKwh;
       } else if (motherBillTotalKwh === 0 && motherBillTotalAmountBilled > 0) {
-        // Handle edge case: if consumption is 0 but amount is billed (e.g., fixed charges)
-        // This might indicate a special scenario or data entry issue. For now, rate could be considered infinite or a fixed charge.
-        // Or, as per simple division, it remains 0 if we don't want to show Infinity.
-        // For simplicity, if consumption is 0, rate is effectively 0 for consumption-based calculation.
-        // If there are fixed charges independent of consumption, this model doesn't capture them separately.
         toast({
           title: "Rate Calculation Note",
           description: "Mother bill total consumption is zero. Rate calculation might not reflect fixed charges if any.",
           variant: "default"
         });
       }
-
+      console.log("Calculated monthlyRate (unrounded):", monthlyRate);
 
       const clientsTotalAmount = clientsTotalKwh * monthlyRate;
+      console.log("Calculated clientsTotalAmount (unrounded):", clientsTotalAmount, "=", clientsTotalKwh, "*", monthlyRate);
+      
       const officeOnlyTotalAmount = motherBillTotalAmountBilled - clientsTotalAmount;
+      console.log("Calculated officeOnlyTotalAmount (unrounded):", officeOnlyTotalAmount, "=", motherBillTotalAmountBilled, "-", clientsTotalAmount);
 
       setStatisticsData({
         billingPeriod: `${selectedBillingMonth} ${selectedBillingYear}`,
