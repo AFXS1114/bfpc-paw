@@ -64,13 +64,7 @@ const allNavItems: NavigationItem[] = [
     section: "Client & Financials",
     restrictedToRoles: ["billing-officer"] 
   },
-  { 
-    href: "/billing", 
-    label: "Billing Summary", 
-    icon: BarChart3, 
-    section: "Client & Financials",
-    restrictedToRoles: ["billing-officer"] 
-  }, 
+  // Billing Summary link removed
   { type: "separator", section: "Client & Financials_End"},
 
   // Application
@@ -157,5 +151,3 @@ export function MainNavigation({ userRole: initialUserRole }: MainNavigationProp
     </SidebarMenu>
   );
 }
-
-    
