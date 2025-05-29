@@ -116,41 +116,44 @@ export interface MotherBillDocument extends Omit<MotherBillEntry, 'id' | 'create
 
 // For invoice generation modal and dedicated invoicing page
 export interface InvoiceData {
-  // From PowerReadingDocument
+  // Client Details (always present)
   clientName: string;
   stallNo: string;
-  billingMonth: string;
-  billingYear: number;
-  clientPreviousReading: number;
-  clientPresentReading: number;
-  clientTotalKwh: number;
+  
+  // Billing Period (generalized for single or batch)
+  billingMonth: string; // For single invoice, the month. For batch, could be "Various" or start month.
+  billingYear: number;  // For single invoice, the year. For batch, the selected year.
 
-  // From MotherBillDocument
-  motherBillTotalAmount: number;
-  motherBillTotalConsumption: number;
+  // Overall financial summary (always present)
+  amountBeforeVAT: number;         // Overall subtotal before VAT
+  vatAmount: number;               // Overall VAT amount
+  totalAmountDue: number;          // Overall total amount due
 
-  // Calculated
-  basicRate: number;
-  amountBeforeVAT: number;
-  vatAmount: number;
-  totalAmountDue: number;
+  // Fields for a SINGLE period invoice (optional for batch)
+  clientPreviousReading?: number;
+  clientPresentReading?: number;
+  clientTotalKwh?: number;
+  motherBillTotalAmount?: number;   // Mother bill for THAT period
+  motherBillTotalConsumption?: number; // Mother bill for THAT period
+  basicRate?: number;               // Basic rate for THAT period
 
-  // New fields for dedicated invoice
+  // Line items for BATCH invoice (optional for single)
+  lineItems?: Array<{
+    description: string; // e.g., "Power Consumption - January 2023"
+    consumption: number; // kWh for that period
+    rate: number;        // Basic rate for that period
+    amount: number;      // Amount for that period (consumption * rate)
+  }>;
+
+  // Standard invoice fields
   invoiceNumber: string;
   invoiceDate: string; // Formatted date string
-
-  // Company details
   companyName: string;
   companyAddressLine1: string;
   companyAddressLine2?: string;
-  // companyLogoUrl is removed as pdfmake handles images differently, can be re-added if base64 approach is chosen
   paymentInstructions?: string;
-
-  // Signatory Details
   signatoryName?: string;
   signatoryPosition?: string;
-
-  // Reading Performer Details
   readingPerformerName?: string;
   readingPerformerPosition?: string;
 }
