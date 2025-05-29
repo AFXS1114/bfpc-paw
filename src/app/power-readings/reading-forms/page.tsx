@@ -52,6 +52,29 @@ if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
   console.error("Failed to load pdfMake VFS fonts on Reading Forms page. Structure of 'pdfFonts':", JSON.stringify(pdfFonts, null, 2));
 }
 
+async function imageToDataUrl(src: string): Promise<string | null> {
+  try {
+    const response = await fetch(src);
+    if (!response.ok) {
+      console.error(`Failed to fetch image: ${response.status} ${response.statusText} for src: ${src}`);
+      return null;
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = (error) => {
+        console.error("FileReader error:", error);
+        reject(error);
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Error converting image to data URL:", error);
+    return null;
+  }
+}
+
 
 const MONTHS_ARRAY = [
   "January", "February", "March", "April", "May", "June",
@@ -169,7 +192,6 @@ export default function ReadingFormsPage() {
         collection(db, "power-readings"),
         where("clientId", "==", selectedClientId),
         orderBy("billingYear", "asc")
-        // Client-side sorting for month will be applied later
       );
       const snapshot = await getDocs(readingsQuery);
       let fetchedReadings = snapshot.docs.map(doc => {
@@ -181,7 +203,6 @@ export default function ReadingFormsPage() {
         } as PowerReadingDocument;
       });
 
-      // Client-side sort by year then month
       fetchedReadings.sort((a, b) => {
         if (a.billingYear !== b.billingYear) {
           return a.billingYear - b.billingYear;
@@ -202,20 +223,29 @@ export default function ReadingFormsPage() {
   };
 
   const handleExportToPdf = async () => {
-    if (!selectedClientDetails || (!yearlyReadings && !allClientReadings)) {
-      toast({ title: "No Data", description: "Generate the form data first.", variant: "destructive" });
-      return;
-    }
-     if (!(pdfMake as any).vfs) {
+    if (!(pdfMake as any).vfs) {
       toast({ title: "PDF Export Error", description: "PDF fonts not loaded. Cannot generate PDF. Please refresh and try again.", variant: "destructive" });
       console.error("pdfMake.vfs is not loaded. PDF generation aborted.");
       return;
     }
+    if (!selectedClientDetails || (!yearlyReadings && !allClientReadings)) {
+      toast({ title: "No Data", description: "Generate the form data first.", variant: "destructive" });
+      return;
+    }
     
     setIsExportingPdf(true);
+    const companyLogoDataUrl = await imageToDataUrl('/company-logo.png');
     let pdfFilename = `ReadingForm-${selectedClientDetails.stallNo}.pdf`;
     let tableBody: any[][] = [];
-    let pdfTitle = `CLIENT POWER READING FORM (${displayMode === 'yearly' ? selectedYear : 'All-Time'})`;
+    let pdfMainTitle = `CLIENT POWER READING FORM (${displayMode === 'yearly' ? selectedYear : 'All-Time'})`;
+
+    const tableHeaders = [
+      { text: displayMode === 'yearly' ? 'Month' : 'Billing Period', style: 'tableHeader' },
+      { text: 'Prev. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
+      { text: 'Pres. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
+      { text: 'Total kWh', style: 'tableHeader', alignment: 'right' as const },
+    ];
+    tableBody.push(tableHeaders);
 
     if (displayMode === 'yearly' && yearlyReadings) {
       pdfFilename = `ReadingForm-${selectedClientDetails.stallNo}-${selectedYear}.pdf`;
@@ -230,12 +260,6 @@ export default function ReadingFormsPage() {
           setIsExportingPdf(false);
           return;
       }
-      tableBody.push([ // Headers for yearly
-        { text: 'Month', style: 'tableHeader' },
-        { text: 'Prev. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Pres. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Total kWh', style: 'tableHeader', alignment: 'right' as const },
-      ]);
       readingsWithData.forEach(reading => {
         tableBody.push([
           reading.month,
@@ -251,12 +275,6 @@ export default function ReadingFormsPage() {
           setIsExportingPdf(false);
           return;
       }
-      tableBody.push([ // Headers for all-time
-        { text: 'Billing Period', style: 'tableHeader' },
-        { text: 'Prev. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Pres. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Total kWh', style: 'tableHeader', alignment: 'right' as const },
-      ]);
       allClientReadings.forEach(reading => {
         tableBody.push([
           `${reading.billingMonth} ${reading.billingYear}`,
@@ -271,70 +289,74 @@ export default function ReadingFormsPage() {
       return;
     }
 
+    const contentDefinition: any[] = [];
+    if (companyLogoDataUrl) {
+        contentDefinition.push({ image: companyLogoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const });
+    }
+    contentDefinition.push({ text: 'BULAN FISH PORT COMPLEX', style: 'companyNameStyle', alignment: 'left' as const });
+    contentDefinition.push({ text: 'Pier 2, Zone-4, Bulan, Sorsogon', style: 'companyAddressStyle', alignment: 'left' as const, margin: [0, 0, 0, 10] as const });
+    contentDefinition.push({ text: pdfMainTitle, style: 'formTitleStyle', alignment: 'center' as const, margin: [0, 0, 0, 10] as const });
+
+    contentDefinition.push({
+      columns: [
+        [
+          { text: `Client Name: ${selectedClientDetails.clientName}`, style: 'info' },
+          { text: `Stall No: ${selectedClientDetails.stallNo}`, style: 'info' },
+        ],
+        [
+          { text: `Meter No: ${selectedClientDetails.powerMeterNo}`, style: 'info', alignment: 'right' as const },
+          displayMode === 'yearly' ? { text: `Year: ${selectedYear}`, style: 'info', alignment: 'right' as const } : {text:''},
+        ]
+      ],
+      margin: [0, 0, 0, 10] as const
+    });
+    contentDefinition.push({
+      table: {
+        widths: ['*', 65, 65, 65], 
+        body: tableBody,
+      },
+      layout: {
+        hLineWidth: function (i: number, node: any) { return (i === 0 || i === node.table.body.length) ? 0.5 : 0.5; },
+        vLineWidth: function (i: number, node: any) { return 0.5; },
+        hLineColor: function (i: number, node: any) { return '#BFBFBF'; },
+        vLineColor: function (i: number, node: any) { return '#BFBFBF'; },
+        paddingLeft: function(i: number, node: any) { return 4; },
+        paddingRight: function(i: number, node: any) { return 4; },
+        paddingTop: function(i: number, node: any) { return 2; },
+        paddingBottom: function(i: number, node: any) { return 2; }
+     }
+    });
+    contentDefinition.push({
+        columns: [
+            {
+                stack: [
+                    { text: 'Readings Performed By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
+                    { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
+                    { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
+                ],
+                width: '50%',
+            },
+            {
+                stack: [
+                    { text: 'Checked By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
+                    { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
+                    { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
+                ],
+                width: '50%',
+            }
+        ],
+        columnGap: 20,
+        margin: [0, 10, 0, 0] as const,
+    });
 
     const documentDefinition: any = {
-      content: [
-        { text: pdfTitle, style: 'title', alignment: 'center' as const },
-        { text: 'BULAN FISH PORT COMPLEX', style: 'subtitle', alignment: 'center' as const },
-        { text: 'Pier 2, Zone-4, Bulan, Sorsogon', style: 'small', alignment: 'center' as const, margin: [0, 0, 0, 10] as const },
-        {
-          columns: [
-            [
-              { text: `Client Name: ${selectedClientDetails.clientName}`, style: 'info' },
-              { text: `Stall No: ${selectedClientDetails.stallNo}`, style: 'info' },
-            ],
-            [
-              { text: `Meter No: ${selectedClientDetails.powerMeterNo}`, style: 'info', alignment: 'right' as const },
-              displayMode === 'yearly' ? { text: `Year: ${selectedYear}`, style: 'info', alignment: 'right' as const } : {text:''},
-            ]
-          ],
-          margin: [0, 0, 0, 10] as const
-        },
-        {
-          table: {
-            widths: ['*', 'auto', 'auto', 'auto'], 
-            body: tableBody,
-          },
-          layout: {
-            hLineWidth: function (i: number, node: any) { return (i === 0 || i === node.table.body.length) ? 0.5 : 0.5; },
-            vLineWidth: function (i: number, node: any) { return 0.5; },
-            hLineColor: function (i: number, node: any) { return '#BFBFBF'; },
-            vLineColor: function (i: number, node: any) { return '#BFBFBF'; },
-            paddingLeft: function(i: number, node: any) { return 4; },
-            paddingRight: function(i: number, node: any) { return 4; },
-            paddingTop: function(i: number, node: any) { return 2; },
-            paddingBottom: function(i: number, node: any) { return 2; }
-         }
-        },
-        {
-            columns: [
-                {
-                    stack: [
-                        { text: 'Readings Performed By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
-                        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
-                        { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
-                    ],
-                    width: '50%',
-                },
-                {
-                    stack: [
-                        { text: 'Checked By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
-                        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
-                        { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
-                    ],
-                    width: '50%',
-                }
-            ],
-            columnGap: 20,
-            margin: [0, 10, 0, 0] as const,
-        }
-      ],
+      content: contentDefinition,
       styles: {
-        title: { fontSize: 14, bold: true, color: '#1E40AF', margin: [0, 0, 0, 2] as const },
-        subtitle: { fontSize: 10, bold: true, margin: [0, 0, 0, 1] as const },
+        companyNameStyle: { fontSize: 10, bold: true, color: '#333333' },
+        companyAddressStyle: { fontSize: 8, color: '#4A4A4A' },
+        formTitleStyle: { fontSize: 14, bold: true, alignment: 'center' as const, margin: [0, 5, 0, 10] as const },
         info: { fontSize: 9, margin: [0, 1, 0, 1] as const },
         tableHeader: { bold: true, fontSize: 8.5, color: '#1F2937' },
-        small: { fontSize: 8, color: '#4A4A4A' },
         signatureLabel: { fontSize: 9, bold: false },
         signatureSublabel: { fontSize: 7, italics: true, color: '#555555' },
       },
@@ -515,7 +537,7 @@ export default function ReadingFormsPage() {
             <CardContent className="overflow-x-auto">
               <div className="p-4 bg-background">
                 <div className="text-center mb-4">
-                  <h2 className="text-xl font-bold text-primary">{pdfMake.vfs ? `CLIENT POWER READING FORM (${displayMode === 'yearly' ? selectedYear : 'All-Time'})` : "CLIENT POWER READING FORM"}</h2>
+                  <h2 className="text-xl font-bold text-primary">{pdfMake.vfs ? `${pdfMainTitle}` : "CLIENT POWER READING FORM"}</h2>
                   <p className="text-sm">BULAN FISH PORT COMPLEX</p>
                   <p className="text-xs">Pier 2, Zone-4, Bulan, Sorsogon</p>
                 </div>
