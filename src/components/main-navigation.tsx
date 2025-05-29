@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Settings, Droplet, Zap, BarChart3, Users, ListTree, ReceiptText, FileText as InvoiceIcon, DatabaseZap, ClipboardList, Layers } from "lucide-react";
+import { LayoutDashboard, Settings, Droplet, Zap, Users, ListTree, ReceiptText, FileText as InvoiceIcon, DatabaseZap, ClipboardList, Layers, PieChart } from "lucide-react"; // Added PieChart
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -64,6 +64,7 @@ const allNavItems: NavigationItem[] = [
     section: "Client & Financials",
     restrictedToRoles: ["billing-officer"] 
   },
+  { href: "/statistics", label: "Statistics", icon: PieChart, section: "Client & Financials" },
   // Billing Summary link removed
   { type: "separator", section: "Client & Financials_End"},
 

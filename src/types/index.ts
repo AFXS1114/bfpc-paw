@@ -215,3 +215,15 @@ export interface ReadingPerformerDocument extends Omit<ReadingPerformerEntry, 'i
   position: string;
   createdAt: Date;
 }
+
+// Statistics Page Data
+export interface MonthlyStatisticsData {
+  billingPeriod: string;
+  motherBillTotalKwh: number;
+  clientsTotalKwh: number;
+  officeKwh: number;
+  monthlyRate: number;
+  clientsTotalAmount: number;
+  officeOnlyTotalAmount: number;
+  motherBillTotalAmountBilled: number;
+}
