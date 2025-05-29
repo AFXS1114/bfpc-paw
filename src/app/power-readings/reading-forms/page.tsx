@@ -191,7 +191,7 @@ export default function ReadingFormsPage() {
       const readingsQuery = query(
         collection(db, "power-readings"),
         where("clientId", "==", selectedClientId),
-        orderBy("billingYear", "asc")
+        orderBy("billingYear", "asc") 
       );
       const snapshot = await getDocs(readingsQuery);
       let fetchedReadings = snapshot.docs.map(doc => {
@@ -203,6 +203,7 @@ export default function ReadingFormsPage() {
         } as PowerReadingDocument;
       });
 
+      // Client-side sort by month within each year
       fetchedReadings.sort((a, b) => {
         if (a.billingYear !== b.billingYear) {
           return a.billingYear - b.billingYear;
@@ -223,10 +224,10 @@ export default function ReadingFormsPage() {
   };
 
   const handleExportToPdf = async () => {
-    if (!(pdfMake as any).vfs) {
-      toast({ title: "PDF Export Error", description: "PDF fonts not loaded. Cannot generate PDF. Please refresh and try again.", variant: "destructive" });
-      console.error("pdfMake.vfs is not loaded. PDF generation aborted.");
-      return;
+    if (!((pdfMake as any).vfs)) {
+        toast({ title: "PDF Export Error", description: "PDF fonts not loaded. Cannot generate PDF. Please refresh and try again.", variant: "destructive" });
+        console.error("pdfMake.vfs is not loaded. PDF generation aborted.");
+        return;
     }
     if (!selectedClientDetails || (!yearlyReadings && !allClientReadings)) {
       toast({ title: "No Data", description: "Generate the form data first.", variant: "destructive" });
@@ -435,6 +436,14 @@ export default function ReadingFormsPage() {
     return null;
   };
 
+  // Define onScreenPreviewTitle in the component scope
+  let onScreenPreviewTitle = "CLIENT POWER READING FORM"; // Default
+  if (displayMode === 'yearly' && selectedYear) {
+    onScreenPreviewTitle = `CLIENT POWER READING FORM (${selectedYear})`;
+  } else if (displayMode === 'allTime') {
+    onScreenPreviewTitle = `CLIENT POWER READING FORM (All-Time)`;
+  }
+
 
   return (
     <main className="flex flex-1 flex-col">
@@ -537,7 +546,7 @@ export default function ReadingFormsPage() {
             <CardContent className="overflow-x-auto">
               <div className="p-4 bg-background">
                 <div className="text-center mb-4">
-                  <h2 className="text-xl font-bold text-primary">{pdfMake.vfs ? `${pdfMainTitle}` : "CLIENT POWER READING FORM"}</h2>
+                  <h2 className="text-xl font-bold text-primary">{onScreenPreviewTitle}</h2>
                   <p className="text-sm">BULAN FISH PORT COMPLEX</p>
                   <p className="text-xs">Pier 2, Zone-4, Bulan, Sorsogon</p>
                 </div>
