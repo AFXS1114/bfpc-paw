@@ -31,26 +31,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, Timestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument } from "@/types";
-import { FileText, Search, Loader2, Download, Eye, History } from "lucide-react";
+import type { ClientDocument, PowerReadingDocument, MonthlyClientSummaryData, ClientMonthlyConsumption } from "@/types";
+import { FileText, Search, Loader2, Download, Eye, History, BarChart3 } from "lucide-react";
 import { format, isValid } from "date-fns";
 
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 
-// VFS Font loading
+// VFS Font loading - More robust approach
 if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
+    (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
 } else if (pdfFonts && (pdfFonts as any).default && (pdfFonts as any).default.pdfMake && (pdfFonts as any).default.pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFonts as any).default.pdfMake.vfs;
+    (pdfMake as any).vfs = (pdfFonts as any).default.pdfMake.vfs;
 } else if (pdfFonts && typeof pdfFonts === 'object' && Object.keys(pdfFonts).length > 0 && !(pdfFonts as any).pdfMake) {
-    (pdfMake as any).vfs = pdfFonts;
+    (pdfMake as any).vfs = pdfFonts; // Potentially pdfFonts is the VFS object itself
     if (!((pdfMake as any).vfs && Object.keys((pdfMake as any).vfs).length > 0)) {
-        (pdfMake as any).vfs = undefined; 
+        (pdfMake as any).vfs = undefined; // Clear if it didn't work
+        console.error("Failed to load pdfMake VFS fonts: direct assignment from default import 'pdfFonts' did not populate vfs.");
     }
 } else {
   console.error("Failed to load pdfMake VFS fonts on Reading Forms page. Structure of 'pdfFonts':", JSON.stringify(pdfFonts, null, 2));
 }
+
 
 async function imageToDataUrl(src: string): Promise<string | null> {
   try {
@@ -85,11 +87,10 @@ const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
 
 interface MonthlyReadingDisplayData {
   month: string;
-  year?: number; // For all-time display
+  year?: number; 
   previousReading: number | null;
   presentReading: number | null;
   totalKwh: number | null;
-  notes: string | null; 
 }
 
 export default function ReadingFormsPage() {
@@ -99,11 +100,14 @@ export default function ReadingFormsPage() {
   
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [selectedYear, setSelectedYear] = useState<string>(currentYear.toString());
+  const [selectedMonth, setSelectedMonth] = useState<string>(MONTHS_ARRAY[new Date().getMonth()]);
+
 
   const [isLoadingForm, setIsLoadingForm] = useState(false);
   const [yearlyReadings, setYearlyReadings] = useState<MonthlyReadingDisplayData[] | null>(null);
   const [allClientReadings, setAllClientReadings] = useState<PowerReadingDocument[] | null>(null);
-  const [displayMode, setDisplayMode] = useState<'yearly' | 'allTime' | null>(null);
+  const [monthlyClientSummaryData, setMonthlyClientSummaryData] = useState<MonthlyClientSummaryData | null>(null);
+  const [displayMode, setDisplayMode] = useState<'yearly' | 'allTime' | 'monthlyClientSummary' | null>(null);
   const [formTitle, setFormTitle] = useState<string>("Reading Form Preview");
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -129,14 +133,20 @@ export default function ReadingFormsPage() {
 
   const clientDetail = clients.find(c => c.id === selectedClientId);
 
+  const resetViews = () => {
+    setYearlyReadings(null);
+    setAllClientReadings(null);
+    setMonthlyClientSummaryData(null);
+    setDisplayMode(null);
+  };
+
   const handleGenerateYearlyForm = async () => {
     if (!selectedClientId || !selectedYear) {
       toast({ title: "Missing Information", description: "Please select a client and year.", variant: "destructive" });
       return;
     }
     setIsLoadingForm(true);
-    setYearlyReadings(null);
-    setAllClientReadings(null);
+    resetViews();
     setSelectedClientDetails(clientDetail || null);
 
     try {
@@ -151,7 +161,6 @@ export default function ReadingFormsPage() {
         return {
           ...data,
           id: doc.id,
-          dateBilled: (data.dateBilled as Timestamp)?.toDate ? (data.dateBilled as Timestamp).toDate() : null,
         } as PowerReadingDocument;
       });
 
@@ -162,7 +171,6 @@ export default function ReadingFormsPage() {
           previousReading: readingForMonth?.previousReading ?? null,
           presentReading: readingForMonth?.presentReading ?? null,
           totalKwh: readingForMonth?.totalKwh ?? null,
-          notes: readingForMonth?.notes || null,
         };
       });
       setYearlyReadings(processedReadings);
@@ -183,8 +191,7 @@ export default function ReadingFormsPage() {
       return;
     }
     setIsLoadingForm(true);
-    setYearlyReadings(null);
-    setAllClientReadings(null);
+    resetViews();
     setSelectedClientDetails(clientDetail || null);
 
     try {
@@ -199,11 +206,9 @@ export default function ReadingFormsPage() {
         return {
           ...data,
           id: doc.id,
-          dateBilled: (data.dateBilled as Timestamp)?.toDate ? (data.dateBilled as Timestamp).toDate() : null,
         } as PowerReadingDocument;
       });
 
-      // Client-side sort by month within each year
       fetchedReadings.sort((a, b) => {
         if (a.billingYear !== b.billingYear) {
           return a.billingYear - b.billingYear;
@@ -223,39 +228,112 @@ export default function ReadingFormsPage() {
     }
   };
 
-  const handleExportToPdf = async () => {
-    if (!((pdfMake as any).vfs)) {
-        toast({ title: "PDF Export Error", description: "PDF fonts not loaded. Cannot generate PDF. Please refresh and try again.", variant: "destructive" });
-        console.error("pdfMake.vfs is not loaded. PDF generation aborted.");
+  const handleGenerateMonthlySummary = async () => {
+    if (!selectedMonth || !selectedYear) {
+      toast({ title: "Missing Information", description: "Please select a month and year for the summary.", variant: "destructive" });
+      return;
+    }
+    setIsLoadingForm(true);
+    resetViews();
+    // No specific client needed for summary, but we need all clients' list
+    if (clients.length === 0 && !isLoadingClients) {
+        toast({ title: "No Clients Found", description: "Cannot generate summary without client data.", variant: "destructive" });
+        setIsLoadingForm(false);
         return;
     }
-    if (!selectedClientDetails || (!yearlyReadings && !allClientReadings)) {
+    
+    try {
+      const readingsQuery = query(
+        collection(db, "power-readings"),
+        where("billingMonth", "==", selectedMonth),
+        where("billingYear", "==", parseInt(selectedYear, 10))
+      );
+      const snapshot = await getDocs(readingsQuery);
+      const periodReadings = snapshot.docs.map(doc => doc.data() as PowerReadingDocument);
+
+      let overallTotalKwh = 0;
+      const clientConsumptions: ClientMonthlyConsumption[] = clients.map(client => {
+        const readingForClient = periodReadings.find(r => r.clientId === client.id);
+        const kwh = readingForClient?.totalKwh ?? null;
+        if (kwh !== null) {
+          overallTotalKwh += kwh;
+        }
+        return {
+          clientId: client.id,
+          clientName: client.clientName,
+          stallNo: client.stallNo,
+          totalKwh: kwh,
+        };
+      });
+      
+      // Sort by client name for consistent display
+      clientConsumptions.sort((a, b) => a.clientName.localeCompare(b.clientName));
+
+      setMonthlyClientSummaryData({
+        month: selectedMonth,
+        year: parseInt(selectedYear, 10),
+        clientConsumptions,
+        overallTotalKwh,
+      });
+      setDisplayMode('monthlyClientSummary');
+      setFormTitle(`Monthly Client Consumption Summary - ${selectedMonth} ${selectedYear}`);
+      toast({ title: "Monthly Summary Generated", description: `Summary for ${selectedMonth} ${selectedYear} is ready.`});
+
+    } catch (error) {
+      console.error("Error generating monthly client summary: ", error);
+      toast({ title: "Error", description: "Could not generate monthly client summary.", variant: "destructive" });
+    } finally {
+      setIsLoadingForm(false);
+    }
+  };
+
+
+  const handleExportToPdf = async () => {
+    if (!(pdfMake as any).vfs) {
+        toast({ title: "PDF Export Error", description: "PDF fonts not loaded. Cannot generate PDF. Please refresh and try again.", variant: "destructive" });
+        console.error("pdfMake.vfs is not loaded. PDF generation aborted on Reading Forms page.");
+        return;
+    }
+    if (!displayMode || (!yearlyReadings && !allClientReadings && !monthlyClientSummaryData)) {
       toast({ title: "No Data", description: "Generate the form data first.", variant: "destructive" });
       return;
     }
     
     setIsExportingPdf(true);
     const companyLogoDataUrl = await imageToDataUrl('/company-logo.png');
-    let pdfFilename = `ReadingForm-${selectedClientDetails.stallNo}.pdf`;
+    let pdfFilename = `ReadingReport.pdf`;
     let tableBody: any[][] = [];
-    let pdfMainTitle = `CLIENT POWER READING FORM (${displayMode === 'yearly' ? selectedYear : 'All-Time'})`;
+    let pdfMainTitle = `CLIENT POWER READING REPORT`;
+    const contentDefinition: any[] = [];
 
-    const tableHeaders = [
-      { text: displayMode === 'yearly' ? 'Month' : 'Billing Period', style: 'tableHeader' },
-      { text: 'Prev. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
-      { text: 'Pres. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
-      { text: 'Total kWh', style: 'tableHeader', alignment: 'right' as const },
-    ];
-    tableBody.push(tableHeaders);
+    if (companyLogoDataUrl) {
+        contentDefinition.push({ image: companyLogoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const });
+    }
+    contentDefinition.push({ text: 'BULAN FISH PORT COMPLEX', style: 'companyNameStyle', alignment: 'left' as const });
+    contentDefinition.push({ text: 'Pier 2, Zone-4, Bulan, Sorsogon', style: 'companyAddressStyle', alignment: 'left' as const, margin: [0, 0, 0, 10] as const });
 
-    if (displayMode === 'yearly' && yearlyReadings) {
+
+    if (displayMode === 'yearly' && yearlyReadings && selectedClientDetails) {
       pdfFilename = `ReadingForm-${selectedClientDetails.stallNo}-${selectedYear}.pdf`;
-      const readingsWithData = yearlyReadings.filter(reading => 
-          reading.previousReading !== null || 
-          reading.presentReading !== null || 
-          reading.totalKwh !== null
-      );
+      pdfMainTitle = `CLIENT POWER READING FORM (${selectedYear})`;
+      
+      contentDefinition.push({ text: pdfMainTitle, style: 'formTitleStyle', alignment: 'center' as const, margin: [0, 0, 0, 10] as const });
+      contentDefinition.push({
+        columns: [
+          [
+            { text: `Client Name: ${selectedClientDetails.clientName}`, style: 'info' },
+            { text: `Stall No: ${selectedClientDetails.stallNo}`, style: 'info' },
+          ],
+          [
+            { text: `Meter No: ${selectedClientDetails.powerMeterNo}`, style: 'info', alignment: 'right' as const },
+            { text: `Year: ${selectedYear}`, style: 'info', alignment: 'right' as const }
+          ]
+        ],
+        margin: [0, 0, 0, 10] as const
+      });
 
+      tableBody.push([{ text: 'Month', style: 'tableHeader' }, { text: 'Prev. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const }, { text: 'Pres. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const }, { text: 'Total kWh', style: 'tableHeader', alignment: 'right' as const }]);
+      const readingsWithData = yearlyReadings.filter(reading => reading.previousReading !== null || reading.presentReading !== null || reading.totalKwh !== null);
       if (readingsWithData.length === 0) {
           toast({ title: "No Data to Export", description: `No readings with data found for ${selectedYear}.`, variant: "default" });
           setIsExportingPdf(false);
@@ -269,8 +347,24 @@ export default function ReadingFormsPage() {
           { text: reading.totalKwh?.toLocaleString() ?? 'N/A', alignment: 'right' as const, bold: true },
         ]);
       });
-    } else if (displayMode === 'allTime' && allClientReadings) {
+    } else if (displayMode === 'allTime' && allClientReadings && selectedClientDetails) {
       pdfFilename = `AllTimeReadingForm-${selectedClientDetails.stallNo}.pdf`;
+      pdfMainTitle = `CLIENT POWER READING FORM (All-Time)`;
+
+      contentDefinition.push({ text: pdfMainTitle, style: 'formTitleStyle', alignment: 'center' as const, margin: [0, 0, 0, 10] as const });
+      contentDefinition.push({
+        columns: [
+          [
+            { text: `Client Name: ${selectedClientDetails.clientName}`, style: 'info' },
+            { text: `Stall No: ${selectedClientDetails.stallNo}`, style: 'info' },
+          ],
+          [
+            { text: `Meter No: ${selectedClientDetails.powerMeterNo}`, style: 'info', alignment: 'right' as const },
+          ]
+        ],
+        margin: [0, 0, 0, 10] as const
+      });
+      tableBody.push([{ text: 'Billing Period', style: 'tableHeader' }, { text: 'Prev. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const }, { text: 'Pres. Reading\n(kWh)', style: 'tableHeader', alignment: 'right' as const }, { text: 'Total kWh', style: 'tableHeader', alignment: 'right' as const }]);
       if (allClientReadings.length === 0) {
           toast({ title: "No Data to Export", description: "No all-time readings found for this client.", variant: "default" });
           setIsExportingPdf(false);
@@ -284,36 +378,36 @@ export default function ReadingFormsPage() {
           { text: reading.totalKwh?.toLocaleString() ?? 'N/A', alignment: 'right' as const, bold: true },
         ]);
       });
+    } else if (displayMode === 'monthlyClientSummary' && monthlyClientSummaryData) {
+        pdfFilename = `MonthlyClientSummary-${monthlyClientSummaryData.month}-${monthlyClientSummaryData.year}.pdf`;
+        pdfMainTitle = `MONTHLY CLIENT POWER CONSUMPTION\n(${monthlyClientSummaryData.month} ${monthlyClientSummaryData.year})`;
+        
+        contentDefinition.push({ text: pdfMainTitle, style: 'formTitleStyle', alignment: 'center' as const, margin: [0, 0, 0, 10] as const });
+        
+        tableBody.push([
+            { text: 'Client Name (Stall No.)', style: 'tableHeader' },
+            { text: 'kWh Consumed', style: 'tableHeader', alignment: 'right' as const },
+        ]);
+        monthlyClientSummaryData.clientConsumptions.forEach(client => {
+            tableBody.push([
+                `${client.clientName} (${client.stallNo})`,
+                { text: client.totalKwh?.toLocaleString() ?? 'N/A', alignment: 'right' as const, bold: true },
+            ]);
+        });
+        tableBody.push([
+            { text: 'TOTAL kWh CONSUMED', style: 'tableHeader', bold: true, colSpan: 1, alignment: 'right' as const },
+            { text: monthlyClientSummaryData.overallTotalKwh.toLocaleString(), style: 'tableHeader', bold: true, alignment: 'right' as const },
+        ]);
+
     } else {
-      toast({ title: "No Data", description: "No data available to export.", variant: "destructive" });
+      toast({ title: "No Data or Invalid Mode", description: "No data available to export or mode is not set correctly.", variant: "destructive" });
       setIsExportingPdf(false);
       return;
     }
 
-    const contentDefinition: any[] = [];
-    if (companyLogoDataUrl) {
-        contentDefinition.push({ image: companyLogoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const });
-    }
-    contentDefinition.push({ text: 'BULAN FISH PORT COMPLEX', style: 'companyNameStyle', alignment: 'left' as const });
-    contentDefinition.push({ text: 'Pier 2, Zone-4, Bulan, Sorsogon', style: 'companyAddressStyle', alignment: 'left' as const, margin: [0, 0, 0, 10] as const });
-    contentDefinition.push({ text: pdfMainTitle, style: 'formTitleStyle', alignment: 'center' as const, margin: [0, 0, 0, 10] as const });
-
-    contentDefinition.push({
-      columns: [
-        [
-          { text: `Client Name: ${selectedClientDetails.clientName}`, style: 'info' },
-          { text: `Stall No: ${selectedClientDetails.stallNo}`, style: 'info' },
-        ],
-        [
-          { text: `Meter No: ${selectedClientDetails.powerMeterNo}`, style: 'info', alignment: 'right' as const },
-          displayMode === 'yearly' ? { text: `Year: ${selectedYear}`, style: 'info', alignment: 'right' as const } : {text:''},
-        ]
-      ],
-      margin: [0, 0, 0, 10] as const
-    });
     contentDefinition.push({
       table: {
-        widths: ['*', 65, 65, 65], 
+        widths: (displayMode === 'monthlyClientSummary') ? ['*', 100] : ['*', 65, 65, 65], 
         body: tableBody,
       },
       layout: {
@@ -327,35 +421,39 @@ export default function ReadingFormsPage() {
         paddingBottom: function(i: number, node: any) { return 2; }
      }
     });
-    contentDefinition.push({
-        columns: [
-            {
-                stack: [
-                    { text: 'Readings Performed By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
-                    { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
-                    { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
-                ],
-                width: '50%',
-            },
-            {
-                stack: [
-                    { text: 'Checked By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
-                    { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
-                    { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
-                ],
-                width: '50%',
-            }
-        ],
-        columnGap: 20,
-        margin: [0, 10, 0, 0] as const,
-    });
+    
+    if (displayMode !== 'monthlyClientSummary') { // Signatures only for individual client forms
+        contentDefinition.push({
+            columns: [
+                {
+                    stack: [
+                        { text: 'Readings Performed By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
+                        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
+                        { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
+                    ],
+                    width: '50%',
+                },
+                {
+                    stack: [
+                        { text: 'Checked By:', style: 'signatureLabel', margin: [0, 30, 0, 10] as const },
+                        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 180, y2: 5, lineWidth: 0.5 }] },
+                        { text: '(Signature over Printed Name)', style: 'signatureSublabel', alignment: 'center' as const }
+                    ],
+                    width: '50%',
+                }
+            ],
+            columnGap: 20,
+            margin: [0, 10, 0, 0] as const,
+        });
+    }
+
 
     const documentDefinition: any = {
       content: contentDefinition,
       styles: {
         companyNameStyle: { fontSize: 10, bold: true, color: '#333333' },
         companyAddressStyle: { fontSize: 8, color: '#4A4A4A' },
-        formTitleStyle: { fontSize: 14, bold: true, alignment: 'center' as const, margin: [0, 5, 0, 10] as const },
+        formTitleStyle: { fontSize: 12, bold: true, alignment: 'center' as const, margin: [0, 5, 0, 10] as const },
         info: { fontSize: 9, margin: [0, 1, 0, 1] as const },
         tableHeader: { bold: true, fontSize: 8.5, color: '#1F2937' },
         signatureLabel: { fontSize: 9, bold: false },
@@ -382,6 +480,8 @@ export default function ReadingFormsPage() {
   };
 
   const renderTableContent = () => {
+    if (isLoadingForm) return <TableRow><TableCell colSpan={5} className="text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>;
+
     if (displayMode === 'yearly' && yearlyReadings) {
       return yearlyReadings.map((reading) => (
         <TableRow key={reading.month}>
@@ -389,7 +489,6 @@ export default function ReadingFormsPage() {
           <TableCell className="text-right text-xs p-1">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
           <TableCell className="text-right text-xs p-1">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
           <TableCell className="text-right font-semibold text-xs p-1">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
-          <TableCell className="max-w-[100px] truncate text-xs p-1" title={reading.notes || undefined}>{reading.notes || '-'}</TableCell>
         </TableRow>
       ));
     }
@@ -400,20 +499,34 @@ export default function ReadingFormsPage() {
           <TableCell className="text-right text-xs p-1">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
           <TableCell className="text-right text-xs p-1">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
           <TableCell className="text-right font-semibold text-xs p-1">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
-          <TableCell className="max-w-[100px] truncate text-xs p-1" title={reading.notes || undefined}>{reading.notes || '-'}</TableCell>
         </TableRow>
       ));
+    }
+    if (displayMode === 'monthlyClientSummary' && monthlyClientSummaryData) {
+        return (
+            <>
+            {monthlyClientSummaryData.clientConsumptions.map((client) => (
+                <TableRow key={client.clientId}>
+                    <TableCell className="font-medium text-xs p-1">{client.clientName} ({client.stallNo})</TableCell>
+                    <TableCell className="text-right font-semibold text-xs p-1">{client.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
+                </TableRow>
+            ))}
+            <TableRow className="bg-muted/50">
+                <TableHead className="text-right font-bold text-xs p-1">TOTAL kWh CONSUMED:</TableHead>
+                <TableCell className="text-right font-bold text-xs p-1">{monthlyClientSummaryData.overallTotalKwh.toLocaleString()} kWh</TableCell>
+            </TableRow>
+            </>
+        );
     }
     return null;
   };
 
   const renderTableHeaders = () => {
-     const commonHeaders = (
+     const commonReadingHeaders = (
         <>
             <TableHead className="text-right text-xs p-1">Prev. Reading</TableHead>
             <TableHead className="text-right text-xs p-1">Pres. Reading</TableHead>
             <TableHead className="text-right text-xs p-1">Total kWh</TableHead>
-            <TableHead className="text-xs p-1">Notes</TableHead>
         </>
      );
 
@@ -421,7 +534,7 @@ export default function ReadingFormsPage() {
       return (
         <TableRow>
           <TableHead className="text-xs p-1">Month</TableHead>
-          {commonHeaders}
+          {commonReadingHeaders}
         </TableRow>
       );
     }
@@ -429,19 +542,28 @@ export default function ReadingFormsPage() {
       return (
         <TableRow>
           <TableHead className="text-xs p-1">Billing Period</TableHead>
-          {commonHeaders}
+          {commonReadingHeaders}
         </TableRow>
       );
+    }
+    if (displayMode === 'monthlyClientSummary') {
+        return (
+            <TableRow>
+                <TableHead className="text-xs p-1">Client Name (Stall No.)</TableHead>
+                <TableHead className="text-right text-xs p-1">kWh Consumed</TableHead>
+            </TableRow>
+        );
     }
     return null;
   };
 
-  // Define onScreenPreviewTitle in the component scope
-  let onScreenPreviewTitle = "CLIENT POWER READING FORM"; // Default
-  if (displayMode === 'yearly' && selectedYear) {
-    onScreenPreviewTitle = `CLIENT POWER READING FORM (${selectedYear})`;
-  } else if (displayMode === 'allTime') {
-    onScreenPreviewTitle = `CLIENT POWER READING FORM (All-Time)`;
+  let onScreenPreviewTitle = "CLIENT POWER READING FORM"; 
+  if (displayMode === 'yearly' && selectedYear && selectedClientDetails) {
+    onScreenPreviewTitle = `CLIENT POWER READING FORM - ${selectedClientDetails.clientName} (${selectedYear})`;
+  } else if (displayMode === 'allTime' && selectedClientDetails) {
+    onScreenPreviewTitle = `ALL-TIME POWER READING FORM - ${selectedClientDetails.clientName}`;
+  } else if (displayMode === 'monthlyClientSummary' && monthlyClientSummaryData) {
+    onScreenPreviewTitle = `MONTHLY CLIENT POWER CONSUMPTION - ${monthlyClientSummaryData.month} ${monthlyClientSummaryData.year}`;
   }
 
 
@@ -453,19 +575,19 @@ export default function ReadingFormsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-6 w-6 text-primary" />
-              Select Client and Generation Mode
+              Select Report Parameters
             </CardTitle>
             <CardDescription>
-              Choose a client to generate their yearly or all-time power reading form.
+              Choose a client for individual forms or select month/year for summary.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div>
-                <Label htmlFor="select-client">Client Name</Label>
+                <Label htmlFor="select-client">Client Name (for Individual Forms)</Label>
                 <Select
                   value={selectedClientId}
-                  onValueChange={(value) => { setSelectedClientId(value); setYearlyReadings(null); setAllClientReadings(null); setDisplayMode(null); }}
+                  onValueChange={(value) => { setSelectedClientId(value); resetViews(); }}
                   disabled={isLoadingClients}
                 >
                   <SelectTrigger id="select-client" className="mt-1">
@@ -481,10 +603,10 @@ export default function ReadingFormsPage() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="select-year">Year (for Yearly Form)</Label>
+                <Label htmlFor="select-year">Year</Label>
                  <Select 
                     value={selectedYear} 
-                    onValueChange={(value) => { setSelectedYear(value); setYearlyReadings(null); setAllClientReadings(null); setDisplayMode(null); }}
+                    onValueChange={(value) => { setSelectedYear(value); resetViews();}}
                  >
                   <SelectTrigger id="select-year" className="mt-1">
                     <SelectValue placeholder="Select year" />
@@ -496,15 +618,31 @@ export default function ReadingFormsPage() {
                   </SelectContent>
                 </Select>
               </div>
+               <div>
+                <Label htmlFor="select-month">Month (for Monthly Summary)</Label>
+                 <Select 
+                    value={selectedMonth} 
+                    onValueChange={(value) => { setSelectedMonth(value); resetViews();}}
+                 >
+                  <SelectTrigger id="select-month" className="mt-1">
+                    <SelectValue placeholder="Select month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTHS_ARRAY.map((month) => (
+                      <SelectItem key={month} value={month}>{month}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-4">
                 <Button onClick={handleGenerateYearlyForm} disabled={isLoadingForm || isLoadingClients || !selectedClientId || !selectedYear}>
-                {isLoadingForm && displayMode !== 'allTime' ? (
+                {isLoadingForm && displayMode === 'yearly' ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                     <Eye className="mr-2 h-4 w-4" />
                 )}
-                Generate Yearly Form
+                Generate Yearly Client Form
                 </Button>
                 <Button onClick={handleGenerateAllTimeForm} variant="outline" disabled={isLoadingForm || isLoadingClients || !selectedClientId}>
                 {isLoadingForm && displayMode === 'allTime' ? (
@@ -512,7 +650,15 @@ export default function ReadingFormsPage() {
                 ) : (
                     <History className="mr-2 h-4 w-4" />
                 )}
-                Generate All-Time Form
+                Generate All-Time Client Form
+                </Button>
+                 <Button onClick={handleGenerateMonthlySummary} variant="secondary" disabled={isLoadingForm || isLoadingClients || !selectedMonth || !selectedYear}>
+                {isLoadingForm && displayMode === 'monthlyClientSummary' ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                )}
+                Generate Monthly Client Summary
                 </Button>
             </div>
           </CardContent>
@@ -520,21 +666,21 @@ export default function ReadingFormsPage() {
 
         {isLoadingForm && (
             <Card className="shadow-lg mt-6">
-                <CardHeader><CardTitle>Generating Form...</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Generating Report...</CardTitle></CardHeader>
                 <CardContent className="flex justify-center items-center py-10">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 </CardContent>
             </Card>
         )}
 
-        {displayMode && selectedClientDetails && !isLoadingForm && (yearlyReadings || allClientReadings) && (
+        {displayMode && !isLoadingForm && (yearlyReadings || allClientReadings || monthlyClientSummaryData) && (
           <Card className="shadow-lg mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>{formTitle}</CardTitle>
-                <CardDescription>Review the readings below or export to PDF.</CardDescription>
+                <CardDescription>Review the data below or export to PDF.</CardDescription>
               </div>
-              <Button onClick={handleExportToPdf} disabled={isExportingPdf || (!yearlyReadings && !allClientReadings)}>
+              <Button onClick={handleExportToPdf} disabled={isExportingPdf || (!yearlyReadings && !allClientReadings && !monthlyClientSummaryData)}>
                 {isExportingPdf ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -543,42 +689,44 @@ export default function ReadingFormsPage() {
                 Export to PDF
               </Button>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <div className="p-4 bg-background">
-                <div className="text-center mb-4">
-                  <h2 className="text-xl font-bold text-primary">{onScreenPreviewTitle}</h2>
-                  <p className="text-sm">BULAN FISH PORT COMPLEX</p>
-                  <p className="text-xs">Pier 2, Zone-4, Bulan, Sorsogon</p>
-                </div>
+            <CardContent id="reading-form-to-export" className="overflow-x-auto bg-white p-4"> {/* Added bg-white and p-4 for capture */}
+              <div className="text-center mb-4">
+                <h2 className="text-xl font-bold text-primary">{onScreenPreviewTitle}</h2>
+                <p className="text-sm">BULAN FISH PORT COMPLEX</p>
+                <p className="text-xs">Pier 2, Zone-4, Bulan, Sorsogon</p>
+              </div>
+              { (displayMode === 'yearly' || displayMode === 'allTime') && selectedClientDetails && (
                 <div className="flex justify-between items-start mb-4 text-sm">
-                  <div>
+                    <div>
                     <p><strong>Client Name:</strong> {selectedClientDetails.clientName}</p>
                     <p><strong>Stall No:</strong> {selectedClientDetails.stallNo}</p>
-                  </div>
-                  <div className="text-right">
+                    </div>
+                    <div className="text-right">
                     <p><strong>Meter No:</strong> {selectedClientDetails.powerMeterNo}</p>
                     {displayMode === 'yearly' && <p><strong>Year:</strong> {selectedYear}</p>}
-                  </div>
+                    </div>
                 </div>
+              )}
                 <Table>
                   <TableHeader>
                     {renderTableHeaders()}
                   </TableHeader>
                   <TableBody>
-                    {renderTableContent() || <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No readings to display.</TableCell></TableRow>}
+                    {renderTableContent() || <TableRow><TableCell colSpan={displayMode === 'monthlyClientSummary' ? 2 : 4} className="text-center text-muted-foreground">No data to display.</TableCell></TableRow>}
                   </TableBody>
                 </Table>
-                <div className="mt-10 flex justify-around text-xs">
-                    <div>
-                        <p className="mb-12">Readings Performed By:</p>
-                        <p className="border-t pt-1 text-center">(Signature over Printed Name)</p>
+                { displayMode !== 'monthlyClientSummary' && (
+                     <div className="mt-10 flex justify-around text-xs">
+                        <div>
+                            <p className="mb-12">Readings Performed By:</p>
+                            <p className="border-t pt-1 text-center">(Signature over Printed Name)</p>
+                        </div>
+                        <div>
+                            <p className="mb-12">Checked By:</p>
+                            <p className="border-t pt-1 text-center">(Signature over Printed Name)</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="mb-12">Checked By:</p>
-                        <p className="border-t pt-1 text-center">(Signature over Printed Name)</p>
-                    </div>
-                </div>
-              </div>
+                )}
             </CardContent>
           </Card>
         )}

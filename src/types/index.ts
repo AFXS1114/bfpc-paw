@@ -227,3 +227,18 @@ export interface MonthlyStatisticsData {
   officeOnlyTotalAmount: number;
   motherBillTotalAmountBilled: number;
 }
+
+// Reading Forms - Monthly Client Summary
+export interface ClientMonthlyConsumption {
+  clientId: string; 
+  clientName: string;
+  stallNo: string;
+  totalKwh: number | null; 
+}
+
+export interface MonthlyClientSummaryData {
+  month: string;
+  year: number;
+  clientConsumptions: ClientMonthlyConsumption[];
+  overallTotalKwh: number;
+}
