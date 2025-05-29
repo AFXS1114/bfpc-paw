@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Settings, Droplet, Zap, BarChart3, Users, ListTree, ReceiptText, FileText as InvoiceIcon, DatabaseZap, ClipboardList } from "lucide-react";
+import { LayoutDashboard, Settings, Droplet, Zap, BarChart3, Users, ListTree, ReceiptText, FileText as InvoiceIcon, DatabaseZap, ClipboardList, Layers } from "lucide-react";
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -56,6 +56,7 @@ const allNavItems: NavigationItem[] = [
   // Client & Financials
   { href: "/clients", label: "Clients", icon: Users, section: "Client & Financials" },
   { href: "/invoicing", label: "Invoicing", icon: InvoiceIcon, section: "Client & Financials" },
+  { href: "/batch-invoice", label: "Batch Invoice", icon: Layers, section: "Client & Financials" },
   { 
     href: "/manage-records", 
     label: "Manage Records", 
