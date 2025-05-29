@@ -2,7 +2,7 @@
 "use client"; 
 
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
@@ -22,8 +22,8 @@ import { Button } from '@/components/ui/button';
 import { Loader2, LogOut } from 'lucide-react'; 
 import { useToast } from '@/hooks/use-toast';
 import type { AppUserRole } from '@/types';
-import { db } from "@/lib/firebase"; // Firestore instance
-import { doc, updateDoc } from "firebase/firestore"; // For updating documents
+import { db } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -36,6 +36,7 @@ const geistMono = Geist_Mono({
 });
 
 const RESTRICTED_PATHS_FOR_BILLING_OFFICER: string[] = ['/manage-records', '/billing'];
+const INACTIVITY_TIMEOUT_DURATION = 30 * 60 * 1000; // 30 minutes
 
 function generateNewPasscode(length: number = 6): string {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -60,8 +61,6 @@ async function renewUserPasscode(userId: string) {
     console.log(`Passcode renewed for user ${userId}`);
   } catch (error) {
     console.error("Error renewing passcode for user:", userId, error);
-    // Optionally, you could show a non-critical toast here if needed,
-    // but typically background errors for logout are just logged.
   }
 }
 
@@ -76,6 +75,46 @@ export default function RootLayout({
   const [isVerifying, setIsVerifying] = useState(true);
   const { toast } = useToast(); 
   const [userRole, setUserRole] = useState<AppUserRole | null>(null);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleLogout = useCallback(async (reason?: string) => {
+    const currentRole = localStorage.getItem('pawUserRole') as AppUserRole | null;
+    const currentUserId = localStorage.getItem('pawUserId');
+
+    if (currentRole === 'billing-officer' && currentUserId) {
+      await renewUserPasscode(currentUserId); 
+    }
+
+    localStorage.removeItem('pawUserVerified');
+    localStorage.removeItem('pawUserRole'); 
+    localStorage.removeItem('pawUserId'); 
+    setUserRole(null);
+    
+    toast({
+      title: reason ? "Session Expired" : "Logged Out",
+      description: reason || "You have been successfully logged out.",
+    });
+    router.push('/login');
+  }, [router, toast]);
+
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+    
+    // Only set the timer if the user is verified and not on the login page
+    const isVerified = localStorage.getItem('pawUserVerified') === 'true';
+    if (isVerified && pathname !== '/login') {
+      inactivityTimerRef.current = setTimeout(() => {
+        handleLogout("Logged out due to inactivity.");
+      }, INACTIVITY_TIMEOUT_DURATION);
+    }
+  }, [pathname, handleLogout]);
+
+  const handleUserActivity = useCallback(() => {
+    resetInactivityTimer();
+  }, [resetInactivityTimer]);
 
   useEffect(() => {
     document.title = 'PAW - Power & Water Management';
@@ -93,30 +132,31 @@ export default function RootLayout({
         variant: "destructive",
       });
       router.replace('/'); 
-    }
-     else {
+    } else {
       setIsVerifying(false);
     }
-  }, [pathname, router, toast]);
 
-  const handleLogout = async () => {
-    const currentRole = localStorage.getItem('pawUserRole') as AppUserRole | null;
-    const currentUserId = localStorage.getItem('pawUserId');
+    // Inactivity timer logic
+    if (isVerified && pathname !== '/login') {
+      const events: (keyof WindowEventMap)[] = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+      events.forEach(event => window.addEventListener(event, handleUserActivity));
+      resetInactivityTimer(); // Start or reset the timer
 
-    if (currentRole === 'billing-officer' && currentUserId) {
-      await renewUserPasscode(currentUserId); // Attempt to renew passcode
+      return () => {
+        events.forEach(event => window.removeEventListener(event, handleUserActivity));
+        if (inactivityTimerRef.current) {
+          clearTimeout(inactivityTimerRef.current);
+        }
+      };
+    } else {
+      // If not verified or on login page, clear any existing timer
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
     }
 
-    localStorage.removeItem('pawUserVerified');
-    localStorage.removeItem('pawUserRole'); 
-    localStorage.removeItem('pawUserId'); // Clear user ID
-    setUserRole(null);
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
-    router.push('/login');
-  };
+  }, [pathname, router, toast, handleUserActivity, resetInactivityTimer]);
+
 
   if (isVerifying && pathname !== '/login') {
     return (
@@ -155,7 +195,7 @@ export default function RootLayout({
                   <MainNavigation userRole={userRole} />
                 </SidebarContent>
                 <SidebarFooter className="p-2 border-t">
-                  <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleLogout}>
+                  <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => handleLogout()}>
                     <LogOut className="h-5 w-5" />
                     <span>Logout</span>
                   </Button>
@@ -172,5 +212,4 @@ export default function RootLayout({
     </html>
   );
 }
-
     
