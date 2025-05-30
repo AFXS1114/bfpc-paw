@@ -233,6 +233,8 @@ export interface ClientMonthlyConsumption {
   clientId: string; 
   clientName: string;
   stallNo: string;
+  previousReading: number | null;
+  presentReading: number | null;
   totalKwh: number | null; 
 }
 
