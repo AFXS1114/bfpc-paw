@@ -17,14 +17,16 @@ import {
 import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog, List, UploadCloud, Eye } from "lucide-react"; // Added Eye
+import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog, List, UploadCloud, Eye, UserCheck } from "lucide-react";
 import { importHistoricalMotherBills } from "@/lib/import-mother-bills";
 import { AddUserModal } from "@/components/add-user-modal";
 import { ViewUsersModal } from "@/components/view-users-modal"; 
 import { AddSignatoryModal } from "@/components/add-signatory-modal";
-import { ViewSignatoriesModal } from "@/components/view-signatories-modal"; // Import new modal
+import { ViewSignatoriesModal } from "@/components/view-signatories-modal";
 import { AddReadingPerformerModal } from "@/components/add-reading-performer-modal";
-import { ViewReadingPerformersModal } from "@/components/view-reading-performers-modal"; // Import new modal
+import { ViewReadingPerformersModal } from "@/components/view-reading-performers-modal";
+import { AddVerifierModal } from "@/components/add-verifier-modal"; // New import
+import { ViewVerifiersModal } from "@/components/view-verifiers-modal"; // New import
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, getDocs, limit, Timestamp } from "firebase/firestore";
 import type { PowerReadingEntry } from "@/types";
@@ -41,9 +43,11 @@ export default function SettingsPage() {
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [isViewUsersModalOpen, setIsViewUsersModalOpen] = useState(false); 
   const [isAddSignatoryModalOpen, setIsAddSignatoryModalOpen] = useState(false);
-  const [isViewSignatoriesModalOpen, setIsViewSignatoriesModalOpen] = useState(false); // New state
+  const [isViewSignatoriesModalOpen, setIsViewSignatoriesModalOpen] = useState(false);
   const [isAddReadingPerformerModalOpen, setIsAddReadingPerformerModalOpen] = useState(false);
-  const [isViewReadingPerformersModalOpen, setIsViewReadingPerformersModalOpen] = useState(false); // New state
+  const [isViewReadingPerformersModalOpen, setIsViewReadingPerformersModalOpen] = useState(false);
+  const [isAddVerifierModalOpen, setIsAddVerifierModalOpen] = useState(false); // New state
+  const [isViewVerifiersModalOpen, setIsViewVerifiersModalOpen] = useState(false); // New state
   const [userRole, setUserRole] = useState<AppUserRole | null>(null);
 
   const [clients, setClients] = useState<ClientDocument[]>([]);
@@ -333,26 +337,45 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Edit3 className="h-6 w-6 text-primary" /> 
-              Signatories & Performers
+              Signatories, Performers & Verifiers
             </CardTitle>
-            <CardDescription>Manage personnel involved in billing and readings.</CardDescription>
+            <CardDescription>Manage personnel involved in billing, readings, and verification.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => setIsAddSignatoryModalOpen(true)}>
-                <UserPlus className="mr-2 h-4 w-4" /> Add Invoice Signatory
-              </Button>
-              <Button onClick={() => setIsAddReadingPerformerModalOpen(true)} variant="outline">
-                <UserCog className="mr-2 h-4 w-4" /> Add Reading Performer 
-              </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h4 className="font-medium mb-2">Invoice Signatories</h4>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <Button onClick={() => setIsAddSignatoryModalOpen(true)} className="flex-1">
+                            <UserPlus className="mr-2 h-4 w-4" /> Add Signatory
+                        </Button>
+                        <Button onClick={() => setIsViewSignatoriesModalOpen(true)} variant="outline" className="flex-1">
+                            <Eye className="mr-2 h-4 w-4" /> View Signatories
+                        </Button>
+                    </div>
+                </div>
+                <div>
+                    <h4 className="font-medium mb-2">Reading Performers</h4>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                         <Button onClick={() => setIsAddReadingPerformerModalOpen(true)} className="flex-1">
+                            <UserCog className="mr-2 h-4 w-4" /> Add Performer
+                        </Button>
+                        <Button onClick={() => setIsViewReadingPerformersModalOpen(true)} variant="outline" className="flex-1">
+                            <Eye className="mr-2 h-4 w-4" /> View Performers
+                        </Button>
+                    </div>
+                </div>
             </div>
-            <div className="flex flex-wrap gap-2 mt-2"> {/* Added mt-2 for spacing */}
-              <Button onClick={() => setIsViewSignatoriesModalOpen(true)} variant="ghost">
-                <Eye className="mr-2 h-4 w-4" /> View Signatories
-              </Button>
-              <Button onClick={() => setIsViewReadingPerformersModalOpen(true)} variant="ghost">
-                <Eye className="mr-2 h-4 w-4" /> View Reading Performers
-              </Button>
+             <div className="mt-6"> {/* Add some margin-top for separation */}
+                <h4 className="font-medium mb-2">'Checked by' Personnel</h4>
+                <div className="flex flex-col sm:flex-row gap-2 max-w-md">
+                    <Button onClick={() => setIsAddVerifierModalOpen(true)} className="flex-1">
+                        <UserCheck className="mr-2 h-4 w-4" /> Add 'Checked by' Personnel
+                    </Button>
+                    <Button onClick={() => setIsViewVerifiersModalOpen(true)} variant="outline" className="flex-1">
+                        <Eye className="mr-2 h-4 w-4" /> View 'Checked by' Personnel
+                    </Button>
+                </div>
             </div>
           </CardContent>
         </Card>
@@ -373,6 +396,8 @@ export default function SettingsPage() {
       <ViewSignatoriesModal isOpen={isViewSignatoriesModalOpen} onOpenChange={setIsViewSignatoriesModalOpen} />
       <AddReadingPerformerModal isOpen={isAddReadingPerformerModalOpen} onOpenChange={setIsAddReadingPerformerModalOpen} />
       <ViewReadingPerformersModal isOpen={isViewReadingPerformersModalOpen} onOpenChange={setIsViewReadingPerformersModalOpen} />
+      <AddVerifierModal isOpen={isAddVerifierModalOpen} onOpenChange={setIsAddVerifierModalOpen} />
+      <ViewVerifiersModal isOpen={isViewVerifiersModalOpen} onOpenChange={setIsViewVerifiersModalOpen} />
     </main>
   );
 }

@@ -95,7 +95,7 @@ export interface MotherBillEntry {
   billingYear: number;
   pastReading: number;
   presentReading: number;
-  totalConsumption: number; 
+  totalConsumption: number;
   totalAmountBilled: number;
   notes?: string;
   createdAt: FieldValue | Timestamp;
@@ -119,7 +119,7 @@ export interface InvoiceData {
   // Client Details (always present)
   clientName: string;
   stallNo: string;
-  
+
   // Billing Period (generalized for single or batch)
   billingMonth: string; // For single invoice, the month. For batch, could be "Various" or start month.
   billingYear: number;  // For single invoice, the year. For batch, the selected year.
@@ -169,11 +169,11 @@ export const APP_USER_ROLE_LABELS: Record<AppUserRole, string> = {
 
 
 export interface AppUserEntry {
-  id?: string; 
+  id?: string;
   name: string;
   role: AppUserRole;
   email: string;
-  passcode: string; 
+  passcode: string;
   createdAt: FieldValue | Timestamp;
 }
 
@@ -216,6 +216,22 @@ export interface ReadingPerformerDocument extends Omit<ReadingPerformerEntry, 'i
   createdAt: Date;
 }
 
+// Verifier Management ('Checked and Verified by')
+export interface VerifierEntry {
+  id?: string; // Firestore will generate this
+  name: string;
+  designation: string;
+  createdAt: FieldValue | Timestamp;
+}
+
+export interface VerifierDocument extends Omit<VerifierEntry, 'id' | 'createdAt'> {
+  id: string;
+  name: string;
+  designation: string;
+  createdAt: Date;
+}
+
+
 // Statistics Page Data
 export interface MonthlyStatisticsData {
   billingPeriod: string;
@@ -230,12 +246,12 @@ export interface MonthlyStatisticsData {
 
 // Reading Forms - Monthly Client Summary
 export interface ClientMonthlyConsumption {
-  clientId: string; 
+  clientId: string;
   clientName: string;
   stallNo: string;
   previousReading: number | null;
   presentReading: number | null;
-  totalKwh: number | null; 
+  totalKwh: number | null;
 }
 
 export interface MonthlyClientSummaryData {
