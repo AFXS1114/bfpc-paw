@@ -102,7 +102,7 @@ export default function InvoicingPage() {
     const unsub = onSnapshot(query(collection(db, "clients"), orderBy("clientName", "asc")), (snap) => {
       setClients(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClientDocument)));
       setIsLoadingClients(false);
-    }, (err) => { console.error("Err clients:", err); toast({ title: "Error", desc: "Failed to fetch clients."}); setIsLoadingClients(false); });
+    }, (err) => { console.error("Err clients:", err); toast({ title: "Error", description: "Failed to fetch clients."}); setIsLoadingClients(false); });
     return () => unsub();
   }, [toast]);
 
@@ -112,7 +112,7 @@ export default function InvoicingPage() {
     const unsub = onSnapshot(query(collection(db, "reading-performers"), orderBy("name", "asc")), (snap) => {
       setReadingPerformers(snap.docs.map(d => ({ id: d.id, ...d.data() } as ReadingPerformerDocument)));
       setIsLoadingReadingPerformers(false);
-    }, (err) => { console.error("Err performers:", err); toast({ title: "Error", desc: "Failed to fetch reading performers."}); setIsLoadingReadingPerformers(false); });
+    }, (err) => { console.error("Err performers:", err); toast({ title: "Error", description: "Failed to fetch reading performers."}); setIsLoadingReadingPerformers(false); });
     return () => unsub();
   }, [toast]);
 
@@ -122,7 +122,7 @@ export default function InvoicingPage() {
     const unsub = onSnapshot(query(collection(db, "signatories"), orderBy("name", "asc")), (snap) => {
       setSignatories(snap.docs.map(d => ({ id: d.id, ...d.data() } as SignatoryDocument)));
       setIsLoadingSignatories(false);
-    }, (err) => { console.error("Err signatories:", err); toast({ title: "Error", desc: "Failed to fetch signatories."}); setIsLoadingSignatories(false); });
+    }, (err) => { console.error("Err signatories:", err); toast({ title: "Error", description: "Failed to fetch signatories."}); setIsLoadingSignatories(false); });
     return () => unsub();
   }, [toast]);
 
@@ -132,7 +132,7 @@ export default function InvoicingPage() {
     const unsub = onSnapshot(query(collection(db, "verifiers"), orderBy("name", "asc")), (snap) => {
       setVerifiers(snap.docs.map(d => ({ id: d.id, ...d.data() } as VerifierDocument)));
       setIsLoadingVerifiers(false);
-    }, (err) => { console.error("Err verifiers:", err); toast({ title: "Error", desc: "Failed to fetch verifiers."}); setIsLoadingVerifiers(false); });
+    }, (err) => { console.error("Err verifiers:", err); toast({ title: "Error", description: "Failed to fetch verifiers."}); setIsLoadingVerifiers(false); });
     return () => unsub();
   }, [toast]);
 
@@ -298,7 +298,7 @@ export default function InvoicingPage() {
             columnGap: 10, 
             margin: [0, 10, 0, 0] as const,
         },
-        { text: 'Thank you for your business!', style: 'small', alignment: 'center' as const, margin: [0, 5, 0, 0] as const }
+        { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 20, 0, 0] as const }
       ];
     };
     
