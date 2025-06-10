@@ -33,7 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData } from "@/types";
+import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument } from "@/types";
 import { Search, Loader2, Download, Layers } from "lucide-react";
 import { format, isValid } from "date-fns";
 
@@ -259,7 +259,7 @@ export default function BatchInvoicePage() {
            paddingBottom: function(i: number, node: any) { return 1; }
         }
       },
-      { // Removed Rate Basis section for consolidated view
+      {
           margin: [0, 2, 0, 2] as const,
           table: { widths: ['*'], body: [[]]},
           layout: 'noBorders'
@@ -300,11 +300,17 @@ export default function BatchInvoicePage() {
                   { text: invoiceData.signatoryName || '', style: 'defaultCompact', bold: true },
                   { text: invoiceData.signatoryPosition || '', style: 'small' },
               ] : {text: ''},
+              (invoiceData.verifierName || invoiceData.verifierDesignation) ? [
+                  { text: 'Checked and Verified by:', style: 'small', margin: [0, 0, 0, 15] as const },
+                  { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
+                  { text: invoiceData.verifierName || '', style: 'defaultCompact', bold: true },
+                  { text: invoiceData.verifierDesignation || '', style: 'small' },
+              ] : {text: ''}
           ],
-          columnGap: 20,
+          columnGap: 10,
           margin: [0, 10, 0, 0] as const,
       },
-      { text: 'Thank you for your business!', style: 'small', alignment: 'center' as const, margin: [0, 5, 0, 0] as const }
+      { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 20, 0, 0] as const }
     ];
   };
 
@@ -350,6 +356,16 @@ export default function BatchInvoicePage() {
         readingPerformerDetails = { name: performerDoc.name, position: performerDoc.position };
       }
     } catch (perfError) { console.warn("Could not fetch reading performer for batch:", perfError); }
+
+    let verifierDetails: { name: string; designation: string } | undefined = undefined;
+    try {
+      const verifiersQuery = query(collection(db, "verifiers"), orderBy("createdAt", "desc"), limit(1));
+      const verifierSnapshot = await getDocs(verifiersQuery);
+      if (!verifierSnapshot.empty) {
+        const verifierDoc = verifierSnapshot.docs[0].data() as VerifierDocument;
+        verifierDetails = { name: verifierDoc.name, designation: verifierDoc.designation };
+      }
+    } catch (verError) { console.warn("Could not fetch verifier for batch:", verError); }
 
 
     for (const readingId of selectedReadingIds) {
@@ -409,7 +425,7 @@ export default function BatchInvoicePage() {
     const consolidatedInvoiceData: InvoiceData = {
         clientName: client.clientName,
         stallNo: client.stallNo,
-        billingMonth: "Various", // Or derive a range
+        billingMonth: "Various", 
         billingYear: parseInt(selectedYear,10),
         lineItems: lineItems,
         amountBeforeVAT: overallAmountBeforeVAT,
@@ -425,6 +441,8 @@ export default function BatchInvoicePage() {
         signatoryPosition: signatoryDetails?.position,
         readingPerformerName: readingPerformerDetails?.name,
         readingPerformerPosition: readingPerformerDetails?.position,
+        verifierName: verifierDetails?.name,
+        verifierDesignation: verifierDetails?.designation,
     };
     
     const documentDefinition: any = {
@@ -600,3 +618,4 @@ export default function BatchInvoicePage() {
     </main>
   );
 }
+
