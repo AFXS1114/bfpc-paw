@@ -1,0 +1,46 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Rules for the 'clients' collection - OPEN ACCESS
+    match /clients/{clientId} {
+      allow read, write: if true; // Allows anyone to read, create, update, delete
+    }
+
+    // Rules for the 'power-readings' collection - OPEN ACCESS
+    match /power-readings/{readingId} {
+      allow read, write: if true; // Allows anyone to read, create, update, delete
+    }
+
+    // Rules for the 'mother-bills' collection - OPEN ACCESS
+    match /mother-bills/{billId} {
+      allow read, write: if true; // Allows anyone to read, create, update, delete
+    }
+    
+     match /app-users/{userId} {
+      allow read, write: if true;
+    }
+    match /signatories/{signatoryId} {
+      allow read, write: if true; // Allows anyone to read, create, update, delete
+    }
+    // Rules for the 'reading-performers' collection - OPEN ACCESS
+    match /reading-performers/{performerId} {
+      allow read, write: if true;
+    }
+
+    // Rules for the 'verifiers' collection - OPEN ACCESS
+    match /verifiers/{verifierId} {
+      allow read, write: if true; // Allows anyone to read, create, update, delete
+    }
+
+    // Rules for the 'invoices' collection - OPEN ACCESS
+    match /invoices/{invoiceId} {
+      allow read, write: if true; // Allows anyone to read, create, update, delete
+    }
+
+    // Add rules for other collections here as you create them.
+    // If you want them to also be completely open, use 'allow read, write: if true;'
+  }
+}
