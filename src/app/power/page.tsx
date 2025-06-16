@@ -40,12 +40,13 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Save, Loader2, Info } from "lucide-react";
+import { Calendar as CalendarIcon, Save, Loader2, Info, History } from "lucide-react"; // Added History icon
 import Image from 'next/image';
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, where, getDocs, limit } from "firebase/firestore";
-import type { ClientDocument, PowerReadingEntry } from "@/types";
+import type { ClientDocument, PowerReadingEntry, PowerReadingDocument } from "@/types";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const powerReadingFormSchema = z.object({
   dateBilled: z.date({ required_error: "Date billed is required." }),
@@ -67,12 +68,26 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December"
 ];
 
+interface SelectedClientDisplayInfo {
+  stallNo: string;
+  powerMeterNo: string;
+  latestReading?: {
+    period: string;
+    dateBilled: string;
+    previousReading: number;
+    presentReading: number;
+    totalKwh: number;
+  } | null; // null if no reading, undefined while loading initially
+}
+
 export default function PowerPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [clients, setClients] = useState<ClientDocument[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
-  const [selectedClientInfo, setSelectedClientInfo] = useState<{ stallNo: string; powerMeterNo: string } | null>(null);
+  const [selectedClientInfo, setSelectedClientInfo] = useState<SelectedClientDisplayInfo | null>(null);
+  const [isLoadingLatestReading, setIsLoadingLatestReading] = useState(false);
+
 
   const form = useForm<PowerReadingFormData>({
     resolver: zodResolver(powerReadingFormSchema),
@@ -129,14 +144,58 @@ export default function PowerPage() {
     if (selectedClientId) {
       const client = clients.find(c => c.id === selectedClientId);
       if (client) {
-        setSelectedClientInfo({ stallNo: client.stallNo, powerMeterNo: client.powerMeterNo });
+        // Set basic info first
+        setSelectedClientInfo({ 
+            stallNo: client.stallNo, 
+            powerMeterNo: client.powerMeterNo,
+            // latestReading will be undefined initially, indicating it might be loading or not fetched yet
+        });
+        setIsLoadingLatestReading(true);
+
+        // Fetch latest reading
+        const fetchLatestReading = async () => {
+          try {
+            const latestReadingQuery = query(
+              collection(db, "power-readings"),
+              where("clientId", "==", selectedClientId),
+              orderBy("createdAt", "desc"),
+              limit(1)
+            );
+            const snapshot = await getDocs(latestReadingQuery);
+            if (!snapshot.empty) {
+              const latestDoc = snapshot.docs[0].data() as PowerReadingDocument;
+              setSelectedClientInfo(prevInfo => ({
+                ...prevInfo!, // prevInfo should exist if client was found
+                latestReading: {
+                  period: `${latestDoc.billingMonth} ${latestDoc.billingYear}`,
+                  dateBilled: latestDoc.dateBilled ? format(new Date(latestDoc.dateBilled), "PPP") : 'N/A',
+                  previousReading: latestDoc.previousReading,
+                  presentReading: latestDoc.presentReading,
+                  totalKwh: latestDoc.totalKwh,
+                }
+              }));
+            } else {
+              setSelectedClientInfo(prevInfo => ({ ...prevInfo!, latestReading: null })); // null indicates no reading found
+            }
+          } catch (error) {
+            console.error("Error fetching latest reading:", error);
+            toast({ title: "Error", description: "Could not fetch latest reading for client.", variant: "destructive" });
+            setSelectedClientInfo(prevInfo => ({ ...prevInfo!, latestReading: null })); // null on error too
+          } finally {
+            setIsLoadingLatestReading(false);
+          }
+        };
+        fetchLatestReading();
+
       } else {
         setSelectedClientInfo(null);
+        setIsLoadingLatestReading(false);
       }
     } else {
       setSelectedClientInfo(null);
+      setIsLoadingLatestReading(false);
     }
-  }, [selectedClientId, clients]);
+  }, [selectedClientId, clients, toast]);
 
   async function onSubmit(data: PowerReadingFormData) {
     setIsSubmitting(true);
@@ -148,7 +207,6 @@ export default function PowerPage() {
     }
 
     try {
-      // Check for existing reading for the same client, month, and year
       const checkForExistingQuery = query(
         collection(db, "power-readings"),
         where("clientId", "==", data.clientId),
@@ -296,7 +354,7 @@ export default function PowerPage() {
                   />
                 </div>
 
-                {selectedClientInfo && (
+                {selectedClientId && selectedClientInfo && (
                   <Card className="bg-muted/50 p-4">
                     <CardHeader className="p-0 pb-2">
                        <CardTitle className="text-lg flex items-center"><Info className="mr-2 h-5 w-5 text-primary" />Client Details</CardTitle>
@@ -304,6 +362,31 @@ export default function PowerPage() {
                     <CardContent className="p-0 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-sm">
                       <p><span className="font-medium">Stall No:</span> {selectedClientInfo.stallNo}</p>
                       <p><span className="font-medium">Power Meter No:</span> {selectedClientInfo.powerMeterNo}</p>
+                      
+                      {isLoadingLatestReading && (
+                        <div className="md:col-span-2 mt-2 space-y-1">
+                            <Skeleton className="h-4 w-1/2" />
+                            <Skeleton className="h-4 w-2/3" />
+                            <Skeleton className="h-4 w-1/2" />
+                        </div>
+                      )}
+                      {!isLoadingLatestReading && selectedClientInfo.latestReading === undefined && (
+                         <p className="md:col-span-2 text-muted-foreground italic mt-1">Fetching latest reading...</p>
+                      )}
+                      {!isLoadingLatestReading && selectedClientInfo.latestReading === null && (
+                         <p className="md:col-span-2 text-muted-foreground italic mt-1">No previous readings found for this client.</p>
+                      )}
+                      {!isLoadingLatestReading && selectedClientInfo.latestReading && (
+                        <>
+                          <p className="md:col-span-2 mt-2 pt-2 border-t border-muted-foreground/20">
+                            <span className="font-medium flex items-center"><History className="mr-1 h-4 w-4 text-primary/80" />Latest Recorded Period:</span> {selectedClientInfo.latestReading.period}
+                          </p>
+                          <p><span className="font-medium">Latest Date Billed:</span> {selectedClientInfo.latestReading.dateBilled}</p>
+                          <p><span className="font-medium">Latest Total kWh:</span> {selectedClientInfo.latestReading.totalKwh.toLocaleString()} kWh</p>
+                          <p><span className="font-medium">Latest Previous:</span> {selectedClientInfo.latestReading.previousReading.toLocaleString()} kWh</p>
+                          <p><span className="font-medium">Latest Present:</span> {selectedClientInfo.latestReading.presentReading.toLocaleString()} kWh</p>
+                        </>
+                      )}
                     </CardContent>
                   </Card>
                 )}
