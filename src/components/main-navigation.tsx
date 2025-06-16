@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Settings, Droplet, Zap, Users, ListTree, ReceiptText, FileText as InvoiceIcon, DatabaseZap, ClipboardList, Layers, PieChart } from "lucide-react"; // Added PieChart
+import { LayoutDashboard, Settings, Droplet, Zap, Users, ListTree, ReceiptText, FileText as InvoiceIcon, DatabaseZap, ClipboardList, Layers, PieChart, Archive } from "lucide-react";
 import { 
   SidebarMenu, 
   SidebarMenuItem, 
@@ -55,8 +55,9 @@ const allNavItems: NavigationItem[] = [
   
   // Client & Financials
   { href: "/clients", label: "Clients", icon: Users, section: "Client & Financials" },
-  { href: "/invoicing", label: "Invoicing", icon: InvoiceIcon, section: "Client & Financials" },
+  { href: "/invoicing", label: "Create Invoice", icon: InvoiceIcon, section: "Client & Financials" },
   { href: "/batch-invoice", label: "Batch Invoice", icon: Layers, section: "Client & Financials" },
+  { href: "/invoices", label: "Invoice Records", icon: Archive, section: "Client & Financials" },
   { 
     href: "/manage-records", 
     label: "Manage Records", 
@@ -65,7 +66,6 @@ const allNavItems: NavigationItem[] = [
     restrictedToRoles: ["billing-officer"] 
   },
   { href: "/statistics", label: "Statistics", icon: PieChart, section: "Client & Financials" },
-  // Billing Summary link removed
   { type: "separator", section: "Client & Financials_End"},
 
   // Application

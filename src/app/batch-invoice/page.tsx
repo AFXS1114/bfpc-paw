@@ -32,8 +32,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument } from "@/types";
+import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp, addDoc, serverTimestamp } from "firebase/firestore";
+import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument, InvoiceRecordEntry } from "@/types";
 import { Search, Loader2, Download, Layers } from "lucide-react";
 import { format, isValid } from "date-fns";
 
@@ -449,6 +449,7 @@ export default function BatchInvoicePage() {
     const overallVatAmount = overallAmountBeforeVAT * 0.12;
     const overallTotalAmountDue = overallAmountBeforeVAT + overallVatAmount;
     const currentDate = new Date();
+    const displayInvoiceDate = format(currentDate, "MMMM dd, yyyy");
 
     const consolidatedInvoiceData: InvoiceData = {
         clientName: client.clientName,
@@ -460,7 +461,7 @@ export default function BatchInvoicePage() {
         vatAmount: overallVatAmount,
         totalAmountDue: overallTotalAmountDue,
         invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-BATCH-ALLTIME`,
-        invoiceDate: format(currentDate, "MMMM dd, yyyy"),
+        invoiceDate: displayInvoiceDate,
         companyName: "BULAN FISH PORT COMPLEX",
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
         companyAddressLine2: "", 
@@ -500,14 +501,31 @@ export default function BatchInvoicePage() {
     
     try {
       pdfMake.createPdf(documentDefinition).download(`BatchInvoice-${client.stallNo}-AllPeriods.pdf`);
+      
+      // Save invoice record to Firestore
+      const invoiceRecord: Omit<InvoiceRecordEntry, 'id' | 'createdAt' | 'invoiceDate' | 'paidAt'> & { createdAt: any, invoiceDate: any, paidAt?: any } = {
+          invoiceNumber: consolidatedInvoiceData.invoiceNumber,
+          invoiceType: 'batch',
+          clientId: client.id,
+          clientName: client.clientName,
+          stallNo: client.stallNo,
+          invoiceDate: serverTimestamp(), // Date PDF was generated/saved
+          displayInvoiceDate: consolidatedInvoiceData.invoiceDate, // Date shown on PDF
+          billingPeriodDescription: "Consolidated Power - All Selected Periods",
+          totalAmountDue: consolidatedInvoiceData.totalAmountDue,
+          status: 'unpaid',
+          createdAt: serverTimestamp(),
+      };
+      await addDoc(collection(db, "invoices"), invoiceRecord);
+
       if (!hasErrors) {
-        toast({ title: "Batch Invoice PDF Exported", description: `Consolidated invoice for ${client.clientName} (All Periods) downloaded.` });
+        toast({ title: "Batch Invoice PDF Exported & Saved", description: `Consolidated invoice for ${client.clientName} (All Periods) downloaded and record saved.` });
       } else {
-        toast({ title: "Batch Invoice PDF Exported with Some Skips", description: `Consolidated invoice downloaded, but some periods were skipped due to missing data.`, variant: "default", duration: 7000 });
+        toast({ title: "Batch Invoice PDF Exported & Saved (with Skips)", description: `Consolidated invoice downloaded and record saved, but some periods were skipped due to missing data.`, variant: "default", duration: 7000 });
       }
     } catch (e) {
-        console.error("Error exporting batch PDF: ", e);
-        toast({ title: "PDF Export Failed", description: "Could not export batch invoice to PDF.", variant: "destructive"});
+        console.error("Error exporting batch PDF or saving invoice: ", e);
+        toast({ title: "PDF Export Failed", description: "Could not export batch invoice to PDF or save record.", variant: "destructive"});
     } finally {
         setIsGeneratingPdf(false);
     }
@@ -541,9 +559,9 @@ export default function BatchInvoicePage() {
                     <SelectValue placeholder={isLoadingClients ? "Loading clients..." : "Select a client"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.clientName} ({client.stallNo})
+                    {clients.map((clientDoc) => (
+                      <SelectItem key={clientDoc.id} value={clientDoc.id}>
+                        {clientDoc.clientName} ({clientDoc.stallNo})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -585,7 +603,7 @@ export default function BatchInvoicePage() {
                     ) : (
                         <Download className="mr-2 h-4 w-4" />
                     )}
-                    Generate Consolidated PDF ({selectedReadingIds.size})
+                    Generate Consolidated PDF & Save ({selectedReadingIds.size})
                 </Button>
             </CardHeader>
             <CardContent>
@@ -630,4 +648,3 @@ export default function BatchInvoicePage() {
     </main>
   );
 }
-

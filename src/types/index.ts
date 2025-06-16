@@ -251,7 +251,7 @@ export interface ClientMonthlyConsumption {
   clientId: string;
   clientName: string;
   stallNo: string;
-  powerMeterNo: string; // Added for the new form
+  powerMeterNo: string;
   previousReading: number | null;
   presentReading: number | null;
   totalKwh: number | null;
@@ -262,5 +262,43 @@ export interface MonthlyClientSummaryData { // Reused for the "Electric Meter Re
   year: number;
   clientConsumptions: ClientMonthlyConsumption[];
   overallTotalKwh: number;
-  motherBillRate: number | null; // Added for the rate display
+  motherBillRate: number | null;
+}
+
+// Invoice Records for Tracking
+export type InvoiceStatus = 'unpaid' | 'paid';
+export type InvoiceType = 'single' | 'batch';
+
+export interface InvoiceRecordEntry {
+  id?: string; // Firestore will generate this
+  invoiceNumber: string;
+  invoiceType: InvoiceType;
+  clientId: string;
+  clientName: string;
+  stallNo: string;
+  invoiceDate: FieldValue | Timestamp; // Date the invoice PDF was generated/saved in system
+  displayInvoiceDate: string; // Formatted date string that appears on the PDF
+  billingPeriodDescription: string; // e.g., "Power - July 2024" or "Consolidated Power - All Periods"
+  totalAmountDue: number;
+  status: InvoiceStatus;
+  officialReceiptNumber?: string;
+  paidAt?: FieldValue | Timestamp;
+  createdAt: FieldValue | Timestamp; // When the record was created in Firestore
+}
+
+export interface InvoiceRecordDocument extends Omit<InvoiceRecordEntry, 'id' | 'invoiceDate' | 'paidAt' | 'createdAt'> {
+  id: string;
+  invoiceNumber: string;
+  invoiceType: InvoiceType;
+  clientId: string;
+  clientName: string;
+  stallNo: string;
+  invoiceDate: Date; 
+  displayInvoiceDate: string; 
+  billingPeriodDescription: string; 
+  totalAmountDue: number;
+  status: InvoiceStatus;
+  officialReceiptNumber?: string;
+  paidAt?: Date;
+  createdAt: Date;
 }

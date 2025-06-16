@@ -21,8 +21,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument, ReadingPerformerDocument, VerifierDocument } from "@/types";
+import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp, addDoc, serverTimestamp } from "firebase/firestore";
+import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument, ReadingPerformerDocument, VerifierDocument, InvoiceRecordEntry } from "@/types";
 import { FileText, Search, Loader2, Download, UserCog, UserCheck, Edit3 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -282,13 +282,13 @@ export default function InvoicingPage() {
                     { text: invoiceCopyData.readingPerformerName || '', style: 'defaultCompact', bold: true },
                     { text: invoiceCopyData.readingPerformerPosition || '', style: 'small' },
                 ] : {text: ''},
-                (invoiceCopyData.signatoryName || invoiceCopyData.signatoryPosition) ? [ // This is "Prepared by"
+                (invoiceCopyData.signatoryName || invoiceCopyData.signatoryPosition) ? [ 
                     { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 15] as const },
                     { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
                     { text: invoiceCopyData.signatoryName || '', style: 'defaultCompact', bold: true },
                     { text: invoiceCopyData.signatoryPosition || '', style: 'small' },
                 ] : {text: ''},
-                (invoiceCopyData.verifierName || invoiceCopyData.verifierDesignation) ? [ // This is "Checked and Verified by"
+                (invoiceCopyData.verifierName || invoiceCopyData.verifierDesignation) ? [ 
                     { text: 'Checked and Verified by:', style: 'small', margin: [0, 0, 0, 15] as const },
                     { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
                     { text: invoiceCopyData.verifierName || '', style: 'defaultCompact', bold: true },
@@ -311,10 +311,32 @@ export default function InvoicingPage() {
     
     try {
       pdfMake.createPdf(documentDefinition).download(`Invoice-${invoiceData.invoiceNumber}.pdf`);
-      toast({ title: "PDF Exported" });
+      
+      // Save invoice record to Firestore
+      const clientDoc = clients.find(c => c.id === selectedClientId);
+      if (clientDoc) {
+        const invoiceRecord: Omit<InvoiceRecordEntry, 'id' | 'createdAt' | 'invoiceDate' | 'paidAt'> & { createdAt: any, invoiceDate: any, paidAt?: any } = {
+            invoiceNumber: invoiceData.invoiceNumber,
+            invoiceType: 'single',
+            clientId: clientDoc.id,
+            clientName: clientDoc.clientName,
+            stallNo: clientDoc.stallNo,
+            invoiceDate: serverTimestamp(), // Date PDF was generated/saved
+            displayInvoiceDate: invoiceData.invoiceDate, // Date shown on PDF
+            billingPeriodDescription: `Power - ${invoiceData.billingMonth} ${invoiceData.billingYear}`,
+            totalAmountDue: invoiceData.totalAmountDue,
+            status: 'unpaid',
+            createdAt: serverTimestamp(),
+        };
+        await addDoc(collection(db, "invoices"), invoiceRecord);
+        toast({ title: "PDF Exported & Invoice Saved", description: `Invoice ${invoiceData.invoiceNumber} saved to records.` });
+      } else {
+        toast({ title: "PDF Exported (Record Not Saved)", description: "Client details missing for saving record.", variant: "destructive"});
+      }
+
     } catch(e) {
-      console.error("Error PDF export: ", e);
-      toast({ title: "PDF Export Failed", variant: "destructive"});
+      console.error("Error PDF export or saving invoice: ", e);
+      toast({ title: "PDF Export Failed", description: (e as Error).message || "Could not export PDF or save invoice record.", variant: "destructive"});
     } finally {
       setIsExportingPdf(false);
     }
@@ -397,10 +419,10 @@ export default function InvoicingPage() {
           <Card className="shadow-lg mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
               <div><CardTitle>Invoice Data Ready</CardTitle><CardDescription>Invoice data for {invoiceData.clientName} ({invoiceData.billingMonth} {invoiceData.billingYear}) is ready. Click to export.</CardDescription></div>
-              <Button onClick={handleExportToPdf} disabled={isExportingPdf}>{isExportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Export to PDF</Button>
+              <Button onClick={handleExportToPdf} disabled={isExportingPdf}>{isExportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Export to PDF & Save</Button>
             </CardHeader>
             <CardContent className="p-2 bg-muted/30 overflow-x-auto">
-                <p className="text-sm text-muted-foreground">The detailed HTML preview has been removed. Click "Export to PDF" to generate the document.</p>
+                <p className="text-sm text-muted-foreground">The detailed HTML preview has been removed. Click "Export to PDF & Save" to generate the document and save the record.</p>
                 <div className="mt-4 p-4 border rounded-md bg-background text-xs">
                     <h4 className="font-semibold mb-2">Quick Data Summary:</h4>
                     <p><strong>Client:</strong> {invoiceData.clientName} ({invoiceData.stallNo})</p>
