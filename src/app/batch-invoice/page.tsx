@@ -54,12 +54,10 @@ if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
 }
 
 
-const MONTHS_ARRAY = [ // Renamed to avoid conflict with MONTHS const
+const MONTHS_ARRAY = [ 
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
-const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
 
 export default function BatchInvoicePage() {
   const { toast } = useToast();
@@ -67,7 +65,6 @@ export default function BatchInvoicePage() {
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   
   const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [selectedYear, setSelectedYear] = useState<string>(currentYear.toString());
 
   const [powerReadings, setPowerReadings] = useState<PowerReadingDocument[]>([]);
   const [isLoadingReadings, setIsLoadingReadings] = useState(false);
@@ -94,8 +91,8 @@ export default function BatchInvoicePage() {
   }, [toast]);
 
   const handleFetchReadings = async () => {
-    if (!selectedClientId || !selectedYear) {
-      toast({ title: "Missing Information", description: "Please select a client and year.", variant: "destructive" });
+    if (!selectedClientId) {
+      toast({ title: "Missing Information", description: "Please select a client.", variant: "destructive" });
       setPowerReadings([]);
       setSelectedReadingIds(new Set());
       return;
@@ -108,22 +105,39 @@ export default function BatchInvoicePage() {
       const readingsQuery = query(
         collection(db, "power-readings"),
         where("clientId", "==", selectedClientId),
-        where("billingYear", "==", parseInt(selectedYear, 10)),
-        orderBy("billingMonth", "asc") 
+        orderBy("billingYear", "asc"), // Order by year first
+        orderBy("billingMonth", "asc") // Then by month
       );
       const snapshot = await getDocs(readingsQuery);
       const fetchedReadings = snapshot.docs.map(doc => {
         const data = doc.data();
+        // Ensure dateBilled and createdAt are properly converted from Timestamp to Date
+        let dateBilled = new Date(); // Default to now if conversion fails
+        if (data.dateBilled && (data.dateBilled as Timestamp).toDate) {
+            dateBilled = (data.dateBilled as Timestamp).toDate();
+        } else if (data.dateBilled) { // Handle if it's already a Date string or object (less likely from Firestore directly)
+            const parsedDate = new Date(data.dateBilled);
+            if (isValid(parsedDate)) dateBilled = parsedDate;
+        }
+
+        let createdAt = new Date(); // Default to now
+        if (data.createdAt && (data.createdAt as Timestamp).toDate) {
+            createdAt = (data.createdAt as Timestamp).toDate();
+        } else if (data.createdAt) {
+            const parsedCreatedAt = new Date(data.createdAt);
+            if (isValid(parsedCreatedAt)) createdAt = parsedCreatedAt;
+        }
+        
         return {
           ...data,
           id: doc.id,
-          dateBilled: (data.dateBilled as Timestamp)?.toDate ? (data.dateBilled as Timestamp).toDate() : new Date(),
-          createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
+          dateBilled: dateBilled,
+          createdAt: createdAt,
         } as PowerReadingDocument;
       });
       setPowerReadings(fetchedReadings);
       if (fetchedReadings.length === 0) {
-        toast({ title: "No Readings", description: "No power readings found for the selected client and year.", variant: "default" });
+        toast({ title: "No Readings", description: "No power readings found for the selected client.", variant: "default" });
       }
     } catch (error) {
       console.error("Error fetching power readings: ", error);
@@ -235,8 +249,8 @@ export default function BatchInvoicePage() {
             { text: `Stall No: ${invoiceData.stallNo}`, style: 'defaultCompact' },
           ],
           [
-            { text: 'Billing For Year:', style: 'subheader', alignment: 'right' as const },
-            { text: `${invoiceData.billingYear}`, alignment: 'right' as const, style: 'defaultCompact' },
+            { text: 'Billing For:', style: 'subheader', alignment: 'right' as const },
+            { text: (invoiceData.billingMonth === "Various" ? "All Recorded Periods" : `${invoiceData.billingMonth} ${invoiceData.billingYear}`), alignment: 'right' as const, style: 'defaultCompact' },
           ]
         ],
         columnGap: 10,
@@ -418,6 +432,20 @@ export default function BatchInvoicePage() {
         return;
     }
 
+    lineItems.sort((a, b) => {
+        const [monthAStr, yearAStr] = a.description.split(" - ")[1].split(" ");
+        const [monthBStr, yearBStr] = b.description.split(" - ")[1].split(" ");
+        const yearA = parseInt(yearAStr);
+        const yearB = parseInt(yearBStr);
+        const monthAIndex = MONTHS_ARRAY.indexOf(monthAStr);
+        const monthBIndex = MONTHS_ARRAY.indexOf(monthBStr);
+
+        if (yearA !== yearB) {
+            return yearA - yearB;
+        }
+        return monthAIndex - monthBIndex;
+    });
+
     const overallVatAmount = overallAmountBeforeVAT * 0.12;
     const overallTotalAmountDue = overallAmountBeforeVAT + overallVatAmount;
     const currentDate = new Date();
@@ -426,12 +454,12 @@ export default function BatchInvoicePage() {
         clientName: client.clientName,
         stallNo: client.stallNo,
         billingMonth: "Various", 
-        billingYear: parseInt(selectedYear,10),
+        billingYear: 0, // Using 0 to indicate "All Periods" when month is "Various"
         lineItems: lineItems,
         amountBeforeVAT: overallAmountBeforeVAT,
         vatAmount: overallVatAmount,
         totalAmountDue: overallTotalAmountDue,
-        invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-${selectedYear}-BATCH`,
+        invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-BATCH-ALLTIME`,
         invoiceDate: format(currentDate, "MMMM dd, yyyy"),
         companyName: "BULAN FISH PORT COMPLEX",
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
@@ -471,9 +499,9 @@ export default function BatchInvoicePage() {
     };
     
     try {
-      pdfMake.createPdf(documentDefinition).download(`BatchInvoice-${client.stallNo}-${selectedYear}.pdf`);
+      pdfMake.createPdf(documentDefinition).download(`BatchInvoice-${client.stallNo}-AllPeriods.pdf`);
       if (!hasErrors) {
-        toast({ title: "Batch Invoice PDF Exported", description: `Consolidated invoice for ${client.clientName} (${selectedYear}) downloaded.` });
+        toast({ title: "Batch Invoice PDF Exported", description: `Consolidated invoice for ${client.clientName} (All Periods) downloaded.` });
       } else {
         toast({ title: "Batch Invoice PDF Exported with Some Skips", description: `Consolidated invoice downloaded, but some periods were skipped due to missing data.`, variant: "default", duration: 7000 });
       }
@@ -494,15 +522,15 @@ export default function BatchInvoicePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-6 w-6 text-primary" />
-              Select Client and Year
+              Select Client
             </CardTitle>
             <CardDescription>
-              Choose a client and year to fetch their power readings for batch invoicing.
+              Choose a client to fetch all their power readings for batch invoicing.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
+              <div className="md:col-span-2">
                 <Label htmlFor="select-client">Client Name</Label>
                 <Select
                   value={selectedClientId}
@@ -521,24 +549,8 @@ export default function BatchInvoicePage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="select-year">Year</Label>
-                 <Select 
-                    value={selectedYear} 
-                    onValueChange={(value) => { setSelectedYear(value); setPowerReadings([]); setSelectedReadingIds(new Set());}}
-                >
-                  <SelectTrigger id="select-year" className="mt-1">
-                    <SelectValue placeholder="Select year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {YEARS.map((year) => (
-                      <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="flex items-end">
-                <Button onClick={handleFetchReadings} disabled={isLoadingReadings || isLoadingClients || !selectedClientId || !selectedYear} className="w-full md:w-auto">
+                <Button onClick={handleFetchReadings} disabled={isLoadingReadings || isLoadingClients || !selectedClientId} className="w-full md:w-auto">
                   {isLoadingReadings ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
@@ -565,7 +577,7 @@ export default function BatchInvoicePage() {
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>Select Readings for Consolidated Batch Invoice</CardTitle>
-                    <CardDescription>Client: {clients.find(c=>c.id === selectedClientId)?.clientName} - Year: {selectedYear}</CardDescription>
+                    <CardDescription>Client: {clients.find(c=>c.id === selectedClientId)?.clientName} - All Recorded Readings</CardDescription>
                 </div>
                  <Button onClick={handleGenerateBatchPdf} disabled={isGeneratingPdf || selectedReadingIds.size === 0}>
                     {isGeneratingPdf ? (
