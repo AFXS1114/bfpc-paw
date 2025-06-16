@@ -163,15 +163,17 @@ export default function PowerPage() {
             );
             const snapshot = await getDocs(latestReadingQuery);
             if (!snapshot.empty) {
-              const latestDoc = snapshot.docs[0].data() as PowerReadingDocument;
+              const firestoreData = snapshot.docs[0].data(); // Raw data from Firestore
+              const dateBilledFromFirestore = firestoreData.dateBilled as Timestamp; // Assume it's a Timestamp
+
               setSelectedClientInfo(prevInfo => ({
-                ...prevInfo!, // prevInfo should exist if client was found
+                ...prevInfo!,
                 latestReading: {
-                  period: `${latestDoc.billingMonth} ${latestDoc.billingYear}`,
-                  dateBilled: latestDoc.dateBilled ? format(new Date(latestDoc.dateBilled), "PPP") : 'N/A',
-                  previousReading: latestDoc.previousReading,
-                  presentReading: latestDoc.presentReading,
-                  totalKwh: latestDoc.totalKwh,
+                  period: `${firestoreData.billingMonth} ${firestoreData.billingYear}`,
+                  dateBilled: dateBilledFromFirestore ? format(dateBilledFromFirestore.toDate(), "PPP") : 'N/A',
+                  previousReading: firestoreData.previousReading,
+                  presentReading: firestoreData.presentReading,
+                  totalKwh: firestoreData.totalKwh,
                 }
               }));
             } else {
@@ -512,3 +514,4 @@ export default function PowerPage() {
     </main>
   );
 }
+
