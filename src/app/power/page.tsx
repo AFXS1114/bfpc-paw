@@ -77,7 +77,7 @@ interface SelectedClientDisplayInfo {
     previousReading: number;
     presentReading: number;
     totalKwh: number;
-  } | null; // null if no reading, undefined while loading initially
+  } | null; 
 }
 
 export default function PowerPage() {
@@ -144,15 +144,12 @@ export default function PowerPage() {
     if (selectedClientId) {
       const client = clients.find(c => c.id === selectedClientId);
       if (client) {
-        // Set basic info first
         setSelectedClientInfo({ 
             stallNo: client.stallNo, 
             powerMeterNo: client.powerMeterNo,
-            // latestReading will be undefined initially, indicating it might be loading or not fetched yet
         });
         setIsLoadingLatestReading(true);
 
-        // Fetch latest reading
         const fetchLatestReading = async () => {
           try {
             const latestReadingQuery = query(
@@ -163,26 +160,32 @@ export default function PowerPage() {
             );
             const snapshot = await getDocs(latestReadingQuery);
             if (!snapshot.empty) {
-              const firestoreData = snapshot.docs[0].data(); // Raw data from Firestore
-              const dateBilledFromFirestore = firestoreData.dateBilled as Timestamp; // Assume it's a Timestamp
+              const firestoreData = snapshot.docs[0].data();
+              const dateBilledFromFirestore = firestoreData.dateBilled as Timestamp;
 
+              const latestReadingDetails = {
+                period: `${firestoreData.billingMonth} ${firestoreData.billingYear}`,
+                dateBilled: dateBilledFromFirestore ? format(dateBilledFromFirestore.toDate(), "PPP") : 'N/A',
+                previousReading: firestoreData.previousReading,
+                presentReading: firestoreData.presentReading,
+                totalKwh: firestoreData.totalKwh,
+              };
               setSelectedClientInfo(prevInfo => ({
                 ...prevInfo!,
-                latestReading: {
-                  period: `${firestoreData.billingMonth} ${firestoreData.billingYear}`,
-                  dateBilled: dateBilledFromFirestore ? format(dateBilledFromFirestore.toDate(), "PPP") : 'N/A',
-                  previousReading: firestoreData.previousReading,
-                  presentReading: firestoreData.presentReading,
-                  totalKwh: firestoreData.totalKwh,
-                }
+                latestReading: latestReadingDetails
               }));
+              // Auto-populate previousReading field
+              setValue('previousReading', latestReadingDetails.presentReading);
+
             } else {
-              setSelectedClientInfo(prevInfo => ({ ...prevInfo!, latestReading: null })); // null indicates no reading found
+              setSelectedClientInfo(prevInfo => ({ ...prevInfo!, latestReading: null }));
+              setValue('previousReading', 0); // No previous reading, set to 0
             }
           } catch (error) {
             console.error("Error fetching latest reading:", error);
             toast({ title: "Error", description: "Could not fetch latest reading for client.", variant: "destructive" });
-            setSelectedClientInfo(prevInfo => ({ ...prevInfo!, latestReading: null })); // null on error too
+            setSelectedClientInfo(prevInfo => ({ ...prevInfo!, latestReading: null }));
+            setValue('previousReading', 0); // Error, set to 0
           } finally {
             setIsLoadingLatestReading(false);
           }
@@ -191,13 +194,15 @@ export default function PowerPage() {
 
       } else {
         setSelectedClientInfo(null);
+        setValue('previousReading', 0);
         setIsLoadingLatestReading(false);
       }
     } else {
       setSelectedClientInfo(null);
+      setValue('previousReading', 0);
       setIsLoadingLatestReading(false);
     }
-  }, [selectedClientId, clients, toast]);
+  }, [selectedClientId, clients, toast, setValue]);
 
   async function onSubmit(data: PowerReadingFormData) {
     setIsSubmitting(true);
