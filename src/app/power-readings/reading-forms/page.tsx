@@ -272,7 +272,7 @@ export default function ReadingFormsPage() {
           clientId: client.id,
           clientName: client.clientName,
           stallNo: client.stallNo,
-          powerMeterNo: client.powerMeterNo,
+          powerMeterNo: client.powerMeterNo, // Added for the new form
           previousReading: readingForClient?.previousReading ?? null,
           presentReading: readingForClient?.presentReading ?? null,
           totalKwh: kwh,
@@ -280,7 +280,6 @@ export default function ReadingFormsPage() {
       });
       
       clientConsumptions.sort((a, b) => {
-        // Attempt to sort by stall number numerically if possible, then alphabetically
         const stallNoA = parseInt(a.stallNo.replace(/[^0-9]/g, ''), 10);
         const stallNoB = parseInt(b.stallNo.replace(/[^0-9]/g, ''), 10);
 
@@ -296,9 +295,9 @@ export default function ReadingFormsPage() {
         year: parseInt(selectedYear, 10),
         clientConsumptions,
         overallTotalKwh,
-        motherBillRate,
+        motherBillRate, // Added for rate display
       });
-      setDisplayMode('monthlyClientSummary'); // Reusing this displayMode, but rendering will be different
+      setDisplayMode('monthlyClientSummary'); 
       setFormTitle(`Electric Meter Reading Form - ${selectedMonth} ${selectedYear}`);
       toast({ title: "Monthly Reading Form Generated", description: `Form for ${selectedMonth} ${selectedYear} is ready.`});
 
@@ -326,7 +325,6 @@ export default function ReadingFormsPage() {
     setIsExportingPdf(true);
 
     try {
-      // Temporarily make all content visible for html2canvas
       const originalOverflow = formElement.style.overflow;
       const originalHeight = formElement.style.height;
       formElement.style.overflow = 'visible';
@@ -335,10 +333,9 @@ export default function ReadingFormsPage() {
       const canvas = await html2canvas(formElement, { 
         scale: 2, 
         backgroundColor: '#ffffff',
-        scrollY: -window.scrollY // Try to capture from the top of the element
+        scrollY: -window.scrollY 
       });
       
-      // Restore original styles
       formElement.style.overflow = originalOverflow;
       formElement.style.height = originalHeight;
 
@@ -355,14 +352,13 @@ export default function ReadingFormsPage() {
       const imgWidth = imgProps.width;
       const imgHeight = imgProps.height;
       
-      // Calculate the ratio to fit the image within the PDF page, maintaining aspect ratio
       const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
       
-      const w = imgWidth * ratio * 0.95; // Use 95% of width/height to add some margin
+      const w = imgWidth * ratio * 0.95; 
       const h = imgHeight * ratio * 0.95;
       
-      const x = (pdfWidth - w) / 2; // Center horizontally
-      const y = (pdfHeight - h) / 2; // Center vertically
+      const x = (pdfWidth - w) / 2; 
+      const y = (pdfHeight - h) / 2; 
 
       pdf.addImage(imgData, 'PNG', x, y, w, h);
       
@@ -573,7 +569,7 @@ export default function ReadingFormsPage() {
                 ) : (
                     <BarChart3 className="mr-2 h-4 w-4" />
                 )}
-                Monthly Reading Form
+                Generate Monthly Reading Form
                 </Button>
             </div>
           </CardContent>
@@ -596,7 +592,7 @@ export default function ReadingFormsPage() {
               </Button>
             </CardHeader>
             <CardContent className="overflow-x-auto bg-background p-2">
-                <div id="reading-form-to-export" className="p-4 bg-white max-w-[794px] min-h-[1123px] mx-auto my-4 border shadow-sm"> {/* A4-like container for PDF export */}
+                <div id="reading-form-to-export" className="p-4 bg-white text-black max-w-[794px] min-h-[1123px] mx-auto my-4 border shadow-sm"> {/* A4-like container for PDF export */}
                     {/* Conditional Rendering based on displayMode */}
                     {displayMode === 'monthlyClientSummary' && monthlyClientSummaryData && (
                         <>
@@ -668,3 +664,4 @@ export default function ReadingFormsPage() {
     </main>
   );
 }
+
