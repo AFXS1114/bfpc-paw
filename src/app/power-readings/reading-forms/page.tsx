@@ -30,8 +30,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, query, where, orderBy, onSnapshot, getDocs, Timestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MonthlyClientSummaryData, ClientMonthlyConsumption } from "@/types";
+import { collection, query, where, orderBy, onSnapshot, getDocs, Timestamp, limit } from "firebase/firestore";
+import type { ClientDocument, PowerReadingDocument, MonthlyClientSummaryData, ClientMonthlyConsumption, MotherBillDocument } from "@/types";
 import { FileText, Search, Loader2, Download, Eye, History, BarChart3 } from "lucide-react";
 import { format, isValid } from "date-fns";
 
@@ -72,7 +72,7 @@ const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
 
 interface MonthlyReadingDisplayData {
   month: string;
-  year?: number; 
+  year?: number;
   previousReading: number | null;
   presentReading: number | null;
   totalKwh: number | null;
@@ -123,6 +123,7 @@ export default function ReadingFormsPage() {
     setAllClientReadings(null);
     setMonthlyClientSummaryData(null);
     setDisplayMode(null);
+    setSelectedClientDetails(null);
   };
 
   const handleGenerateYearlyForm = async () => {
@@ -132,7 +133,9 @@ export default function ReadingFormsPage() {
     }
     setIsLoadingForm(true);
     resetViews();
-    setSelectedClientDetails(clientDetail || null);
+    const currentClientDetail = clients.find(c => c.id === selectedClientId);
+    setSelectedClientDetails(currentClientDetail || null);
+
 
     try {
       const readingsQuery = query(
@@ -160,8 +163,8 @@ export default function ReadingFormsPage() {
       });
       setYearlyReadings(processedReadings);
       setDisplayMode('yearly');
-      setFormTitle(`Reading Form for ${clientDetail?.clientName || 'Client'} - ${selectedYear}`);
-      toast({ title: "Yearly Form Generated", description: `Reading form for ${clientDetail?.clientName || 'client'} for ${selectedYear} is ready.`});
+      setFormTitle(`Reading Form for ${currentClientDetail?.clientName || 'Client'} - ${selectedYear}`);
+      toast({ title: "Yearly Form Generated", description: `Reading form for ${currentClientDetail?.clientName || 'client'} for ${selectedYear} is ready.`});
     } catch (error) {
       console.error("Error generating yearly reading form: ", error);
       toast({ title: "Error", description: "Could not generate yearly reading form.", variant: "destructive" });
@@ -177,13 +180,14 @@ export default function ReadingFormsPage() {
     }
     setIsLoadingForm(true);
     resetViews();
-    setSelectedClientDetails(clientDetail || null);
+    const currentClientDetail = clients.find(c => c.id === selectedClientId);
+    setSelectedClientDetails(currentClientDetail || null);
 
     try {
       const readingsQuery = query(
         collection(db, "power-readings"),
         where("clientId", "==", selectedClientId),
-        orderBy("billingYear", "asc") 
+        orderBy("billingYear", "asc")
       );
       const snapshot = await getDocs(readingsQuery);
       let fetchedReadings = snapshot.docs.map(doc => {
@@ -203,8 +207,8 @@ export default function ReadingFormsPage() {
 
       setAllClientReadings(fetchedReadings);
       setDisplayMode('allTime');
-      setFormTitle(`All-Time Reading Form for ${clientDetail?.clientName || 'Client'}`);
-      toast({ title: "All-Time Form Generated", description: `All-time reading form for ${clientDetail?.clientName || 'client'} is ready.`});
+      setFormTitle(`All-Time Reading Form for ${currentClientDetail?.clientName || 'Client'}`);
+      toast({ title: "All-Time Form Generated", description: `All-time reading form for ${currentClientDetail?.clientName || 'client'} is ready.`});
     } catch (error) {
       console.error("Error generating all-time reading form: ", error);
       toast({ title: "Error", description: "Could not generate all-time reading form.", variant: "destructive" });
@@ -213,21 +217,42 @@ export default function ReadingFormsPage() {
     }
   };
 
-  const handleGenerateMonthlySummary = async () => {
+  const handleGenerateMonthlyReadingForm = async () => {
     if (!selectedMonth || !selectedYear) {
-      toast({ title: "Missing Information", description: "Please select a month and year for the summary.", variant: "destructive" });
+      toast({ title: "Missing Information", description: "Please select a month and year for the form.", variant: "destructive" });
       return;
     }
     setIsLoadingForm(true);
     resetViews();
     
     if (clients.length === 0 && !isLoadingClients) {
-        toast({ title: "No Clients Found", description: "Cannot generate summary without client data.", variant: "destructive" });
+        toast({ title: "No Clients Found", description: "Cannot generate form without client data.", variant: "destructive" });
         setIsLoadingForm(false);
         return;
     }
     
     try {
+      // Fetch Mother Bill for the rate
+      let motherBillRate: number | null = null;
+      const motherBillQuery = query(
+        collection(db, "mother-bills"),
+        where("utilityType", "==", "power"),
+        where("billingMonth", "==", selectedMonth),
+        where("billingYear", "==", parseInt(selectedYear, 10)),
+        limit(1)
+      );
+      const motherBillSnapshot = await getDocs(motherBillQuery);
+      if (!motherBillSnapshot.empty) {
+        const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
+        if (motherBill.totalConsumption > 0) {
+          motherBillRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
+        } else {
+           toast({ title: "Rate Warning", description: "Mother bill consumption is zero, rate cannot be calculated.", variant: "default" });
+        }
+      } else {
+        toast({ title: "Rate Warning", description: "Mother bill not found for the selected period, rate cannot be displayed.", variant: "default" });
+      }
+
       const readingsQuery = query(
         collection(db, "power-readings"),
         where("billingMonth", "==", selectedMonth),
@@ -247,27 +272,39 @@ export default function ReadingFormsPage() {
           clientId: client.id,
           clientName: client.clientName,
           stallNo: client.stallNo,
+          powerMeterNo: client.powerMeterNo,
           previousReading: readingForClient?.previousReading ?? null,
           presentReading: readingForClient?.presentReading ?? null,
           totalKwh: kwh,
         };
       });
       
-      clientConsumptions.sort((a, b) => a.clientName.localeCompare(b.clientName));
+      clientConsumptions.sort((a, b) => {
+        // Attempt to sort by stall number numerically if possible, then alphabetically
+        const stallNoA = parseInt(a.stallNo.replace(/[^0-9]/g, ''), 10);
+        const stallNoB = parseInt(b.stallNo.replace(/[^0-9]/g, ''), 10);
+
+        if (!isNaN(stallNoA) && !isNaN(stallNoB) && stallNoA !== stallNoB) {
+            return stallNoA - stallNoB;
+        }
+        return a.stallNo.localeCompare(b.stallNo);
+      });
+
 
       setMonthlyClientSummaryData({
         month: selectedMonth,
         year: parseInt(selectedYear, 10),
         clientConsumptions,
         overallTotalKwh,
+        motherBillRate,
       });
-      setDisplayMode('monthlyClientSummary');
-      setFormTitle(`Monthly Client Consumption Summary - ${selectedMonth} ${selectedYear}`);
-      toast({ title: "Monthly Summary Generated", description: `Summary for ${selectedMonth} ${selectedYear} is ready.`});
+      setDisplayMode('monthlyClientSummary'); // Reusing this displayMode, but rendering will be different
+      setFormTitle(`Electric Meter Reading Form - ${selectedMonth} ${selectedYear}`);
+      toast({ title: "Monthly Reading Form Generated", description: `Form for ${selectedMonth} ${selectedYear} is ready.`});
 
     } catch (error) {
-      console.error("Error generating monthly client summary: ", error);
-      toast({ title: "Error", description: "Could not generate monthly client summary.", variant: "destructive" });
+      console.error("Error generating monthly reading form: ", error);
+      toast({ title: "Error", description: "Could not generate monthly reading form.", variant: "destructive" });
     } finally {
       setIsLoadingForm(false);
     }
@@ -289,7 +326,22 @@ export default function ReadingFormsPage() {
     setIsExportingPdf(true);
 
     try {
-      const canvas = await html2canvas(formElement, { scale: 2, backgroundColor: '#ffffff' });
+      // Temporarily make all content visible for html2canvas
+      const originalOverflow = formElement.style.overflow;
+      const originalHeight = formElement.style.height;
+      formElement.style.overflow = 'visible';
+      formElement.style.height = 'auto';
+
+      const canvas = await html2canvas(formElement, { 
+        scale: 2, 
+        backgroundColor: '#ffffff',
+        scrollY: -window.scrollY // Try to capture from the top of the element
+      });
+      
+      // Restore original styles
+      formElement.style.overflow = originalOverflow;
+      formElement.style.height = originalHeight;
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -302,24 +354,25 @@ export default function ReadingFormsPage() {
       const imgProps = pdf.getImageProperties(imgData);
       const imgWidth = imgProps.width;
       const imgHeight = imgProps.height;
+      
+      // Calculate the ratio to fit the image within the PDF page, maintaining aspect ratio
       const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
       
-      const w = imgWidth * ratio;
-      const h = imgHeight * ratio;
+      const w = imgWidth * ratio * 0.95; // Use 95% of width/height to add some margin
+      const h = imgHeight * ratio * 0.95;
       
-      // Center the image on the PDF page
-      const x = (pdfWidth - w) / 2;
-      const y = (pdfHeight - h) / 2;
+      const x = (pdfWidth - w) / 2; // Center horizontally
+      const y = (pdfHeight - h) / 2; // Center vertically
 
       pdf.addImage(imgData, 'PNG', x, y, w, h);
       
       let pdfFilename = `ReadingReport.pdf`;
        if (displayMode === 'yearly' && selectedClientDetails && selectedYear) {
-        pdfFilename = `ReadingForm-${selectedClientDetails.stallNo}-${selectedYear}.pdf`;
+        pdfFilename = `YearlyReadingForm-${selectedClientDetails.stallNo}-${selectedYear}.pdf`;
       } else if (displayMode === 'allTime' && selectedClientDetails) {
         pdfFilename = `AllTimeReadingForm-${selectedClientDetails.stallNo}.pdf`;
       } else if (displayMode === 'monthlyClientSummary' && monthlyClientSummaryData) {
-        pdfFilename = `MonthlyClientSummary-${monthlyClientSummaryData.month}-${monthlyClientSummaryData.year}.pdf`;
+        pdfFilename = `MonthlyReadingForm-${monthlyClientSummaryData.month}-${monthlyClientSummaryData.year}.pdf`;
       }
       pdf.save(pdfFilename);
       toast({ title: "PDF Exported", description: "Report has been downloaded." });
@@ -332,102 +385,101 @@ export default function ReadingFormsPage() {
     }
   };
 
-
-  const renderTableContent = () => {
-    if (isLoadingForm) return <TableRow><TableCell colSpan={5} className="text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>;
+  const renderContentForDisplayMode = () => {
+    if (isLoadingForm) {
+        return (
+            <TableRow>
+                <TableCell colSpan={displayMode === 'monthlyClientSummary' ? 6 : 4} className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto my-10 text-primary" />
+                </TableCell>
+            </TableRow>
+        );
+    }
 
     if (displayMode === 'yearly' && yearlyReadings) {
-      const readingsWithData = yearlyReadings.filter(reading => reading.previousReading !== null || reading.presentReading !== null || reading.totalKwh !== null);
-      if (readingsWithData.length === 0) return <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No readings found for this year.</TableCell></TableRow>;
-      
-      return readingsWithData.map((reading) => (
-        <TableRow key={reading.month}>
-          <TableCell className="font-medium text-xs p-1">{reading.month}</TableCell>
-          <TableCell className="text-right text-xs p-1">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
-          <TableCell className="text-right text-xs p-1">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
-          <TableCell className="text-right font-semibold text-xs p-1">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
-        </TableRow>
-      ));
+        const readingsWithData = yearlyReadings.filter(reading => reading.previousReading !== null || reading.presentReading !== null || reading.totalKwh !== null);
+        if (readingsWithData.length === 0) return <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-4">No readings found for this year.</TableCell></TableRow>;
+        return readingsWithData.map((reading) => (
+            <TableRow key={reading.month}>
+                <TableCell className="font-medium text-xs p-1 border">{reading.month}</TableCell>
+                <TableCell className="text-right text-xs p-1 border">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
+                <TableCell className="text-right text-xs p-1 border">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
+                <TableCell className="text-right font-semibold text-xs p-1 border">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
+            </TableRow>
+        ));
     }
+
     if (displayMode === 'allTime' && allClientReadings) {
-       if (allClientReadings.length === 0) return <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No readings found for this client.</TableCell></TableRow>;
-       return allClientReadings.map((reading) => (
-        <TableRow key={reading.id}>
-          <TableCell className="font-medium text-xs p-1">{`${reading.billingMonth} ${reading.billingYear}`}</TableCell>
-          <TableCell className="text-right text-xs p-1">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
-          <TableCell className="text-right text-xs p-1">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
-          <TableCell className="text-right font-semibold text-xs p-1">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
-        </TableRow>
-      ));
+        if (allClientReadings.length === 0) return <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-4">No readings found for this client.</TableCell></TableRow>;
+        return allClientReadings.map((reading) => (
+            <TableRow key={reading.id}>
+                <TableCell className="font-medium text-xs p-1 border">{`${reading.billingMonth} ${reading.billingYear}`}</TableCell>
+                <TableCell className="text-right text-xs p-1 border">{reading.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
+                <TableCell className="text-right text-xs p-1 border">{reading.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
+                <TableCell className="text-right font-semibold text-xs p-1 border">{reading.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
+            </TableRow>
+        ));
     }
+
     if (displayMode === 'monthlyClientSummary' && monthlyClientSummaryData) {
-        if (monthlyClientSummaryData.clientConsumptions.length === 0) return <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No client consumption data for this period.</TableCell></TableRow>;
+        if (monthlyClientSummaryData.clientConsumptions.length === 0) return <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-4">No client consumption data for this period.</TableCell></TableRow>;
         return (
             <>
-            {monthlyClientSummaryData.clientConsumptions.map((client) => (
-                <TableRow key={client.clientId}>
-                    <TableCell className="font-medium text-xs p-1">{client.clientName} ({client.stallNo})</TableCell>
-                    <TableCell className="text-right text-xs p-1">{client.previousReading?.toLocaleString() ?? 'N/A'}</TableCell>
-                    <TableCell className="text-right text-xs p-1">{client.presentReading?.toLocaleString() ?? 'N/A'}</TableCell>
-                    <TableCell className="text-right font-semibold text-xs p-1">{client.totalKwh?.toLocaleString() ?? 'N/A'}</TableCell>
+                {monthlyClientSummaryData.clientConsumptions.map((client) => (
+                    <TableRow key={client.clientId}>
+                        <TableCell className="text-xs p-1 border">{client.clientName}</TableCell>
+                        <TableCell className="text-xs p-1 border">{client.stallNo}</TableCell>
+                        <TableCell className="text-xs p-1 border">{client.powerMeterNo}</TableCell>
+                        <TableCell className="text-right text-xs p-1 border">{client.previousReading?.toLocaleString() ?? ''}</TableCell>
+                        <TableCell className="text-right text-xs p-1 border">{client.presentReading?.toLocaleString() ?? ''}</TableCell>
+                        <TableCell className="text-right font-semibold text-xs p-1 border">{client.totalKwh?.toLocaleString() ?? ''}</TableCell>
+                    </TableRow>
+                ))}
+                <TableRow className="bg-muted/20">
+                    <TableCell colSpan={5} className="text-right font-bold text-xs p-1 border">TOTAL kWh CONSUMED:</TableCell>
+                    <TableCell className="text-right font-bold text-xs p-1 border">{monthlyClientSummaryData.overallTotalKwh.toLocaleString()}</TableCell>
                 </TableRow>
-            ))}
-            <TableRow className="bg-muted/50">
-                <TableCell colSpan={3} className="text-right font-bold text-xs p-1">TOTAL kWh CONSUMED:</TableCell>
-                <TableCell className="text-right font-bold text-xs p-1">{monthlyClientSummaryData.overallTotalKwh.toLocaleString()} kWh</TableCell>
-            </TableRow>
             </>
         );
     }
-    return null;
+    return <TableRow><TableCell colSpan={displayMode === 'monthlyClientSummary' ? 6 : 4} className="text-center text-muted-foreground py-4">Select parameters and generate a report.</TableCell></TableRow>;
   };
-
-  const renderTableHeaders = () => {
-     const commonReadingHeaders = (
-        <>
-            <TableHead className="text-right text-xs p-1">Prev. Reading</TableHead>
-            <TableHead className="text-right text-xs p-1">Pres. Reading</TableHead>
-            <TableHead className="text-right text-xs p-1">Total kWh</TableHead>
-        </>
-     );
-
+  
+  const renderTableHeadersForDisplayMode = () => {
     if (displayMode === 'yearly') {
-      return (
-        <TableRow>
-          <TableHead className="text-xs p-1">Month</TableHead>
-          {commonReadingHeaders}
-        </TableRow>
-      );
+        return (
+            <TableRow>
+                <TableHead className="text-xs p-1 border">Month</TableHead>
+                <TableHead className="text-right text-xs p-1 border">Prev. Reading</TableHead>
+                <TableHead className="text-right text-xs p-1 border">Pres. Reading</TableHead>
+                <TableHead className="text-right text-xs p-1 border">Total kWh</TableHead>
+            </TableRow>
+        );
     }
     if (displayMode === 'allTime') {
-      return (
-        <TableRow>
-          <TableHead className="text-xs p-1">Billing Period</TableHead>
-          {commonReadingHeaders}
-        </TableRow>
-      );
+        return (
+            <TableRow>
+                <TableHead className="text-xs p-1 border">Billing Period</TableHead>
+                <TableHead className="text-right text-xs p-1 border">Prev. Reading</TableHead>
+                <TableHead className="text-right text-xs p-1 border">Pres. Reading</TableHead>
+                <TableHead className="text-right text-xs p-1 border">Total kWh</TableHead>
+            </TableRow>
+        );
     }
     if (displayMode === 'monthlyClientSummary') {
         return (
             <TableRow>
-                <TableHead className="text-xs p-1">Client Name (Stall No.)</TableHead>
-                <TableHead className="text-right text-xs p-1">Prev. Reading (kWh)</TableHead>
-                <TableHead className="text-right text-xs p-1">Pres. Reading (kWh)</TableHead>
-                <TableHead className="text-right text-xs p-1">kWh Consumed</TableHead>
+                <TableHead className="text-xs p-1 border">CUSTOMER</TableHead>
+                <TableHead className="text-xs p-1 border">LOCATION</TableHead>
+                <TableHead className="text-xs p-1 border">METER #</TableHead>
+                <TableHead className="text-right text-xs p-1 border">PREVIOUS READING</TableHead>
+                <TableHead className="text-right text-xs p-1 border">PRESENT READING</TableHead>
+                <TableHead className="text-right text-xs p-1 border">KWH/ CONSUMED</TableHead>
             </TableRow>
         );
     }
-    return null;
+    return null; 
   };
-
-  let onScreenPreviewTitle = "CLIENT POWER READING FORM"; 
-  if (displayMode === 'yearly' && selectedYear && selectedClientDetails) {
-    onScreenPreviewTitle = `CLIENT POWER READING FORM - ${selectedClientDetails.clientName} (${selectedYear})`;
-  } else if (displayMode === 'allTime' && selectedClientDetails) {
-    onScreenPreviewTitle = `ALL-TIME POWER READING FORM - ${selectedClientDetails.clientName}`;
-  } else if (displayMode === 'monthlyClientSummary' && monthlyClientSummaryData) {
-    onScreenPreviewTitle = `MONTHLY CLIENT POWER CONSUMPTION - ${monthlyClientSummaryData.month} ${monthlyClientSummaryData.year}`;
-  }
 
 
   return (
@@ -441,7 +493,7 @@ export default function ReadingFormsPage() {
               Select Report Parameters
             </CardTitle>
             <CardDescription>
-              Choose a client for individual forms or select month/year for summary.
+              Choose options below to generate different types of reading forms.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -482,7 +534,7 @@ export default function ReadingFormsPage() {
                 </Select>
               </div>
                <div>
-                <Label htmlFor="select-month">Month (for Monthly Summary)</Label>
+                <Label htmlFor="select-month">Month</Label>
                  <Select 
                     value={selectedMonth} 
                     onValueChange={(value) => { setSelectedMonth(value); resetViews();}}
@@ -499,13 +551,13 @@ export default function ReadingFormsPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-4">
-                <Button onClick={handleGenerateYearlyForm} disabled={isLoadingForm || isLoadingClients || !selectedClientId || !selectedYear}>
+                <Button onClick={handleGenerateYearlyForm} variant="outline" disabled={isLoadingForm || isLoadingClients || !selectedClientId || !selectedYear}>
                 {isLoadingForm && displayMode === 'yearly' ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                     <Eye className="mr-2 h-4 w-4" />
                 )}
-                Generate Yearly Client Form
+                Client Yearly Form
                 </Button>
                 <Button onClick={handleGenerateAllTimeForm} variant="outline" disabled={isLoadingForm || isLoadingClients || !selectedClientId}>
                 {isLoadingForm && displayMode === 'allTime' ? (
@@ -513,37 +565,28 @@ export default function ReadingFormsPage() {
                 ) : (
                     <History className="mr-2 h-4 w-4" />
                 )}
-                Generate All-Time Client Form
+                Client All-Time Form
                 </Button>
-                 <Button onClick={handleGenerateMonthlySummary} variant="secondary" disabled={isLoadingForm || isLoadingClients || !selectedMonth || !selectedYear}>
+                 <Button onClick={handleGenerateMonthlyReadingForm} disabled={isLoadingForm || isLoadingClients || !selectedMonth || !selectedYear}>
                 {isLoadingForm && displayMode === 'monthlyClientSummary' ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                     <BarChart3 className="mr-2 h-4 w-4" />
                 )}
-                Generate Monthly Client Summary
+                Monthly Reading Form
                 </Button>
             </div>
           </CardContent>
         </Card>
 
-        {isLoadingForm && (
-            <Card className="shadow-lg mt-6">
-                <CardHeader><CardTitle>Generating Report...</CardTitle></CardHeader>
-                <CardContent className="flex justify-center items-center py-10">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                </CardContent>
-            </Card>
-        )}
-
-        {displayMode && !isLoadingForm && (yearlyReadings || allClientReadings || monthlyClientSummaryData) && (
+        {(isLoadingForm || displayMode) && (
           <Card className="shadow-lg mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>{formTitle}</CardTitle>
-                <CardDescription>Review the data below or export to PDF.</CardDescription>
+                 <CardDescription>{displayMode === 'monthlyClientSummary' ? `Data for ${monthlyClientSummaryData?.month} ${monthlyClientSummaryData?.year}` : (selectedClientDetails ? `Client: ${selectedClientDetails.clientName}`: 'Review data or export.')}</CardDescription>
               </div>
-              <Button onClick={handleExportToPdf} disabled={isExportingPdf || (!yearlyReadings && !allClientReadings && !monthlyClientSummaryData)}>
+              <Button onClick={handleExportToPdf} disabled={isExportingPdf || isLoadingForm || (!yearlyReadings && !allClientReadings && !monthlyClientSummaryData)}>
                 {isExportingPdf ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -553,43 +596,69 @@ export default function ReadingFormsPage() {
               </Button>
             </CardHeader>
             <CardContent className="overflow-x-auto bg-background p-2">
-                <div id="reading-form-to-export" className="p-4 bg-white max-w-[794px] mx-auto"> {/* Ensure this div has an ID and white background */}
-                    <div className="text-center mb-4">
-                        <h2 className="text-xl font-bold text-primary">{onScreenPreviewTitle}</h2>
-                        <p className="text-sm">BULAN FISH PORT COMPLEX</p>
-                        <p className="text-xs">Pier 2, Zone-4, Bulan, Sorsogon</p>
-                    </div>
-                    { (displayMode === 'yearly' || displayMode === 'allTime') && selectedClientDetails && (
-                        <div className="flex justify-between items-start mb-4 text-sm">
-                            <div>
-                            <p><strong>Client Name:</strong> {selectedClientDetails.clientName}</p>
-                            <p><strong>Stall No:</strong> {selectedClientDetails.stallNo}</p>
+                <div id="reading-form-to-export" className="p-4 bg-white max-w-[794px] min-h-[1123px] mx-auto my-4 border shadow-sm"> {/* A4-like container for PDF export */}
+                    {/* Conditional Rendering based on displayMode */}
+                    {displayMode === 'monthlyClientSummary' && monthlyClientSummaryData && (
+                        <>
+                            <div className="text-center mb-3">
+                                <h3 className="text-sm font-semibold uppercase">Philippine Fisheries Development Authority</h3>
+                                <h4 className="text-xs font-semibold uppercase">Bulan Fish Port Complex</h4>
+                                <p className="text-xs mt-2 font-bold">Electric Meter Reading Form</p>
+                                <p className="text-xs">for the Month of {monthlyClientSummaryData.month} {monthlyClientSummaryData.year}</p>
                             </div>
-                            <div className="text-right">
-                            <p><strong>Meter No:</strong> {selectedClientDetails.powerMeterNo}</p>
-                            {displayMode === 'yearly' && <p><strong>Year:</strong> {selectedYear}</p>}
+                            {monthlyClientSummaryData.motherBillRate !== null && (
+                                <p className="text-xs mb-2 text-center">
+                                    Rate based from Mother Reading: <span className="font-bold underline">{monthlyClientSummaryData.motherBillRate.toFixed(2)}</span> /kWh
+                                </p>
+                            )}
+                            <Table className="w-full border-collapse border border-black">
+                                <TableHeader>{renderTableHeadersForDisplayMode()}</TableHeader>
+                                <TableBody>{renderContentForDisplayMode()}</TableBody>
+                            </Table>
+                        </>
+                    )}
+
+                    {(displayMode === 'yearly' || displayMode === 'allTime') && selectedClientDetails && (
+                        <>
+                            <div className="text-center mb-3">
+                                <h3 className="text-sm font-semibold uppercase">Client Power Reading Form</h3>
+                                <h4 className="text-xs font-semibold uppercase">Bulan Fish Port Complex</h4>
                             </div>
+                            <div className="flex justify-between items-start mb-2 text-xs">
+                                <div>
+                                    <p><strong>Client Name:</strong> {selectedClientDetails.clientName}</p>
+                                    <p><strong>Stall No:</strong> {selectedClientDetails.stallNo}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p><strong>Meter No:</strong> {selectedClientDetails.powerMeterNo}</p>
+                                    {displayMode === 'yearly' && <p><strong>Year:</strong> {selectedYear}</p>}
+                                </div>
+                            </div>
+                            <Table className="w-full border-collapse border border-black">
+                                <TableHeader>{renderTableHeadersForDisplayMode()}</TableHeader>
+                                <TableBody>{renderContentForDisplayMode()}</TableBody>
+                            </Table>
+                            <div className="mt-8 flex justify-around text-[10px]">
+                                <div>
+                                    <p className="mb-10">Readings Performed By:</p>
+                                    <p className="border-t border-black pt-1 text-center">(Signature over Printed Name)</p>
+                                </div>
+                                <div>
+                                    <p className="mb-10">Checked By:</p>
+                                    <p className="border-t border-black pt-1 text-center">(Signature over Printed Name)</p>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                    
+                    {/* Fallback for when displayMode is set but no specific data structure matches (should not happen with current logic) */}
+                    {isLoadingForm && (
+                         <div className="flex justify-center items-center py-10">
+                            <Loader2 className="h-12 w-12 animate-spin text-primary" />
                         </div>
                     )}
-                    <Table>
-                        <TableHeader>
-                        {renderTableHeaders()}
-                        </TableHeader>
-                        <TableBody>
-                        {renderTableContent() || <TableRow><TableCell colSpan={displayMode === 'monthlyClientSummary' ? 4 : 4} className="text-center text-muted-foreground">No data to display.</TableCell></TableRow>}
-                        </TableBody>
-                    </Table>
-                    { displayMode !== 'monthlyClientSummary' && (
-                        <div className="mt-10 flex justify-around text-xs">
-                            <div>
-                                <p className="mb-12">Readings Performed By:</p>
-                                <p className="border-t pt-1 text-center">(Signature over Printed Name)</p>
-                            </div>
-                            <div>
-                                <p className="mb-12">Checked By:</p>
-                                <p className="border-t pt-1 text-center">(Signature over Printed Name)</p>
-                            </div>
-                        </div>
+                    {!isLoadingForm && !yearlyReadings && !allClientReadings && !monthlyClientSummaryData && (
+                        <p className="text-center text-muted-foreground py-10">No data to display for the selected report type.</p>
                     )}
                 </div>
             </CardContent>
@@ -599,4 +668,3 @@ export default function ReadingFormsPage() {
     </main>
   );
 }
-

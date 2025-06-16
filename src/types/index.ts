@@ -156,6 +156,8 @@ export interface InvoiceData {
   signatoryPosition?: string;
   readingPerformerName?: string;
   readingPerformerPosition?: string;
+  verifierName?: string;
+  verifierDesignation?: string;
 }
 
 // App User Management
@@ -244,19 +246,21 @@ export interface MonthlyStatisticsData {
   motherBillTotalAmountBilled: number;
 }
 
-// Reading Forms - Monthly Client Summary
+// Reading Forms - Monthly Client Summary / Electric Meter Reading Form
 export interface ClientMonthlyConsumption {
   clientId: string;
   clientName: string;
   stallNo: string;
+  powerMeterNo: string; // Added for the new form
   previousReading: number | null;
   presentReading: number | null;
   totalKwh: number | null;
 }
 
-export interface MonthlyClientSummaryData {
+export interface MonthlyClientSummaryData { // Reused for the "Electric Meter Reading Form"
   month: string;
   year: number;
   clientConsumptions: ClientMonthlyConsumption[];
   overallTotalKwh: number;
+  motherBillRate: number | null; // Added for the rate display
 }
