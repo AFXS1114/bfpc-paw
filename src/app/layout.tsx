@@ -88,6 +88,7 @@ export default function RootLayout({
     localStorage.removeItem('pawUserVerified');
     localStorage.removeItem('pawUserRole'); 
     localStorage.removeItem('pawUserId'); 
+    localStorage.removeItem('pawUserName');
     setUserRole(null);
     
     toast({

@@ -228,6 +228,7 @@ export default function LoginPage() {
       localStorage.setItem("pawUserVerified", "true");
       localStorage.setItem("pawUserRole", storedUser.role);
       localStorage.setItem("pawUserId", storedUser.id);
+      localStorage.setItem("pawUserName", storedUser.name);
       toast({
         title: "Verification Successful",
         description: "You are now logged in.",
