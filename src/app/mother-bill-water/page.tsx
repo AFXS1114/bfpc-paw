@@ -22,7 +22,7 @@ export default function WaterMotherBillPage() {
           </CardHeader>
           <CardContent>
             <p className="text-center text-muted-foreground">
-               The water mother bill entry and management system is not yet functional. We are working hard to bring this feature to you soon.
+               The water mother bill entry and management system is not yet functional. I am working hard to bring this feature to you soon.
             </p>
           </CardContent>
         </Card>
