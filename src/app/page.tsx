@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AppUserRole } from "@/types";
 import { APP_USER_ROLE_LABELS } from "@/types";
@@ -38,13 +38,18 @@ export default function DashboardPage() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              This is your main dashboard. Future updates will include system overviews and key statistics.
-            </p>
-          </CardContent>
         </Card>
       </div>
+      <footer className="p-4 text-center text-sm text-muted-foreground">
+        <a
+          href="https://www.facebook.com/parakapeako"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-primary transition-colors"
+        >
+          System Developer
+        </a>
+      </footer>
     </main>
   );
 }
