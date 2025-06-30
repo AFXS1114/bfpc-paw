@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { AppUserRole, ClientDocument, MotherBillEntry } from "@/types";
+import type { AppUserRole, ClientDocument, MotherBillEntry, PowerReadingEntry, WaterReadingEntry } from "@/types";
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea"; 
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +30,6 @@ import { AddVerifierModal } from "@/components/add-verifier-modal";
 import { ViewVerifiersModal } from "@/components/view-verifiers-modal"; 
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, getDocs, limit, Timestamp } from "firebase/firestore";
-import type { PowerReadingEntry } from "@/types";
 
 
 const MONTHS_FOR_PARSING = [
@@ -55,6 +55,7 @@ export default function SettingsPage() {
   const [selectedClientIdForImport, setSelectedClientIdForImport] = useState<string>("");
   const [isImportingClientReadings, setIsImportingClientReadings] = useState(false);
   const [jsonInputString, setJsonInputString] = useState<string>(""); 
+  const [clientImportType, setClientImportType] = useState<'power' | 'water'>('power');
 
   const [waterJsonInputString, setWaterJsonInputString] = useState<string>("");
   const [isImportingWaterMotherBills, setIsImportingWaterMotherBills] = useState(false);
@@ -110,7 +111,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleImportPastedJsonReadings = async () => { 
+  const handleImportPastedClientReadings = async () => {
     if (!selectedClientIdForImport) {
       toast({ title: "Client Not Selected", description: "Please select a client to assign these readings to.", variant: "destructive" });
       return;
@@ -144,9 +145,11 @@ export default function SettingsPage() {
 
     let importedCount = 0;
     let skippedCount = 0;
-    const readingsCollection = collection(db, "power-readings");
-
     const recordsToImport = Object.values(parsedJsonData) as Array<Record<string, string | number>>;
+
+    const collectionName = clientImportType === 'power' ? 'power-readings' : 'water-readings';
+    const readingsCollection = collection(db, collectionName);
+    const consumptionKey = clientImportType === 'power' ? 'KWH Used' : 'M3 Used';
 
     for (const record of recordsToImport) {
       try {
@@ -164,7 +167,7 @@ export default function SettingsPage() {
         const existingSnapshot = await getDocs(q);
         if (!existingSnapshot.empty) {
           skippedCount++;
-          console.log(`Skipping duplicate for ${selectedClient.clientName}, ${billingMonth} ${billingYear}`);
+          console.log(`Skipping duplicate for ${selectedClient.clientName}, ${billingMonth} ${billingYear} in ${collectionName}`);
           continue;
         }
 
@@ -176,24 +179,35 @@ export default function SettingsPage() {
         }
         const dateBilled = new Date(billingYear, monthIndex, 1);
 
-        const newReadingEntry: Omit<PowerReadingEntry, 'id' | 'createdAt'> = {
-          clientId: selectedClient.id,
-          clientName: selectedClient.clientName,
-          stallNo: selectedClient.stallNo,
-          powerMeterNo: selectedClient.powerMeterNo,
-          dateBilled: Timestamp.fromDate(dateBilled),
-          billingMonth: billingMonth,
-          billingYear: billingYear,
-          previousReading: Number(record.Previous) || 0,
-          presentReading: Number(record.Present) || 0,
-          totalKwh: Number(record["KWH Used"]) || 0,
-          notes: "Imported from pasted JSON",
+        const commonData = {
+            clientId: selectedClient.id,
+            clientName: selectedClient.clientName,
+            stallNo: selectedClient.stallNo,
+            dateBilled: Timestamp.fromDate(dateBilled),
+            billingMonth: billingMonth,
+            billingYear: billingYear,
+            previousReading: Number(record.Previous) || 0,
+            presentReading: Number(record.Present) || 0,
+            notes: "Imported from pasted JSON",
+            createdAt: serverTimestamp(),
         };
 
-        await addDoc(readingsCollection, {
-          ...newReadingEntry,
-          createdAt: serverTimestamp(),
-        });
+        if (clientImportType === 'power') {
+            const newReadingEntry: Omit<PowerReadingEntry, 'id'> = {
+                ...commonData,
+                powerMeterNo: selectedClient.powerMeterNo,
+                totalKwh: Number(record[consumptionKey]) || 0,
+            };
+             await addDoc(readingsCollection, newReadingEntry);
+        } else { // water
+            const newReadingEntry: Omit<WaterReadingEntry, 'id'> = {
+                ...commonData,
+                waterMeterNo: selectedClient.waterMeterNo,
+                totalM3: Number(record[consumptionKey]) || 0,
+            };
+            await addDoc(readingsCollection, newReadingEntry);
+        }
+        
         importedCount++;
       } catch (e) {
         console.error("Error importing a JSON record: ", record, e);
@@ -207,12 +221,13 @@ export default function SettingsPage() {
 
     toast({
       title: "Pasted JSON Import Complete",
-      description: `${importedCount} records imported. ${skippedCount} records skipped (duplicates or errors).`,
+      description: `${importedCount} ${clientImportType} records imported. ${skippedCount} records skipped (duplicates or errors).`,
     });
     setIsImportingClientReadings(false);
     setJsonInputString(""); 
     setSelectedClientIdForImport(""); 
   };
+
 
   const handleImportWaterMotherBills = async () => {
     if (!waterJsonInputString.trim()) {
@@ -367,23 +382,42 @@ export default function SettingsPage() {
               </div>
               <hr className="my-4"/>
               <div>
-                <h3 className="text-lg font-medium mb-1">Import Client Power Readings from JSON</h3>
+                <h3 className="text-lg font-medium mb-1">Import Client Readings from JSON</h3>
                  <p className="text-sm text-muted-foreground mb-3">
-                  Paste your JSON data below and select a client to assign these readings to.
-                  The JSON should be an object where each key is an arbitrary ID and the value is an object with keys:
-                  "BILLING MONTH" (e.g., "January 2023"), "Previous" (number), "Present" (number), and "KWH Used" (number).
+                  Select the utility type, paste your JSON data, and select a client to assign these readings to.
                 </p>
-                <div className="space-y-4 max-w-lg"> 
+                <div className="space-y-4 max-w-lg">
+                  <div>
+                    <Label>Utility Type</Label>
+                    <RadioGroup defaultValue={clientImportType} onValueChange={(value: 'power' | 'water') => setClientImportType(value)} className="flex items-center space-x-4 mt-1">
+                      <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="power" id="r-power" />
+                          <Label htmlFor="r-power">Power</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="water" id="r-water" />
+                          <Label htmlFor="r-water">Water</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
                   <div>
                     <Label htmlFor="paste-json-data">Paste JSON Data Here</Label>
                     <Textarea
                       id="paste-json-data"
                       value={jsonInputString}
                       onChange={(e) => setJsonInputString(e.target.value)}
-                      placeholder='{\n  "-ID1": { "BILLING MONTH": "January 2023", "Previous": 100, "Present": 200, "KWH Used": 100 },\n  "-ID2": { "BILLING MONTH": "February 2023", "Previous": 200, "Present": 350, "KWH Used": 150 }\n}'
+                      placeholder={
+                        clientImportType === 'power'
+                          ? '{\n  "-ID1": { "BILLING MONTH": "January 2023", "Previous": 100, "Present": 200, "KWH Used": 100 },\n  "-ID2": { "BILLING MONTH": "February 2023", "Previous": 200, "Present": 350, "KWH Used": 150 }\n}'
+                          : '{\n  "-ID1": { "BILLING MONTH": "January 2023", "Previous": 100, "Present": 200, "M3 Used": 100 },\n  "-ID2": { "BILLING MONTH": "February 2023", "Previous": 200, "Present": 350, "M3 Used": 150 }\n}'
+                      }
                       className="mt-1 min-h-[150px] font-mono text-xs" 
                       disabled={isImportingClientReadings}
                     />
+                     <p className="text-xs text-muted-foreground mt-1">
+                      JSON format must be an object of objects. Keys for consumption are "{clientImportType === 'power' ? 'KWH Used' : 'M3 Used'}", "Previous", "Present", and "BILLING MONTH".
+                    </p>
                   </div>
                   <div>
                     <Label htmlFor="select-client-for-pasted-import">Assign Readings to Client</Label>
@@ -405,7 +439,7 @@ export default function SettingsPage() {
                     </Select>
                   </div>
                   <Button 
-                    onClick={handleImportPastedJsonReadings} 
+                    onClick={handleImportPastedClientReadings} 
                     disabled={isImportingClientReadings || !selectedClientIdForImport || isLoadingClients || !jsonInputString.trim()}
                     className="w-full"
                   >
@@ -414,7 +448,7 @@ export default function SettingsPage() {
                     ) : (
                       <UploadCloud className="mr-2 h-4 w-4" />
                     )}
-                    Import Pasted JSON Readings
+                    Import Pasted {clientImportType === 'power' ? 'Power' : 'Water'} Readings
                   </Button>
                 </div>
               </div>
@@ -512,3 +546,5 @@ export default function SettingsPage() {
     </main>
   );
 }
+
+    
