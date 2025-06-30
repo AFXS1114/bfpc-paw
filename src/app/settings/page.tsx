@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { AppUserRole, ClientDocument } from "@/types";
+import type { AppUserRole, ClientDocument, MotherBillEntry } from "@/types";
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -14,10 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea"; // Import Textarea
+import { Textarea } from "@/components/ui/textarea"; 
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog, List, UploadCloud, Eye, UserCheck } from "lucide-react";
+import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog, List, UploadCloud, Eye, UserCheck, Droplet } from "lucide-react";
 import { importHistoricalMotherBills } from "@/lib/import-mother-bills";
 import { AddUserModal } from "@/components/add-user-modal";
 import { ViewUsersModal } from "@/components/view-users-modal"; 
@@ -25,8 +25,8 @@ import { AddSignatoryModal } from "@/components/add-signatory-modal";
 import { ViewSignatoriesModal } from "@/components/view-signatories-modal";
 import { AddReadingPerformerModal } from "@/components/add-reading-performer-modal";
 import { ViewReadingPerformersModal } from "@/components/view-reading-performers-modal";
-import { AddVerifierModal } from "@/components/add-verifier-modal"; // New import
-import { ViewVerifiersModal } from "@/components/view-verifiers-modal"; // New import
+import { AddVerifierModal } from "@/components/add-verifier-modal"; 
+import { ViewVerifiersModal } from "@/components/view-verifiers-modal"; 
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, getDocs, limit, Timestamp } from "firebase/firestore";
 import type { PowerReadingEntry } from "@/types";
@@ -46,8 +46,8 @@ export default function SettingsPage() {
   const [isViewSignatoriesModalOpen, setIsViewSignatoriesModalOpen] = useState(false);
   const [isAddReadingPerformerModalOpen, setIsAddReadingPerformerModalOpen] = useState(false);
   const [isViewReadingPerformersModalOpen, setIsViewReadingPerformersModalOpen] = useState(false);
-  const [isAddVerifierModalOpen, setIsAddVerifierModalOpen] = useState(false); // New state
-  const [isViewVerifiersModalOpen, setIsViewVerifiersModalOpen] = useState(false); // New state
+  const [isAddVerifierModalOpen, setIsAddVerifierModalOpen] = useState(false); 
+  const [isViewVerifiersModalOpen, setIsViewVerifiersModalOpen] = useState(false); 
   const [userRole, setUserRole] = useState<AppUserRole | null>(null);
 
   const [clients, setClients] = useState<ClientDocument[]>([]);
@@ -55,6 +55,10 @@ export default function SettingsPage() {
   const [selectedClientIdForImport, setSelectedClientIdForImport] = useState<string>("");
   const [isImportingClientReadings, setIsImportingClientReadings] = useState(false);
   const [jsonInputString, setJsonInputString] = useState<string>(""); 
+
+  const [waterJsonInputString, setWaterJsonInputString] = useState<string>("");
+  const [isImportingWaterMotherBills, setIsImportingWaterMotherBills] = useState(false);
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -210,6 +214,66 @@ export default function SettingsPage() {
     setSelectedClientIdForImport(""); 
   };
 
+  const handleImportWaterMotherBills = async () => {
+    if (!waterJsonInputString.trim()) {
+      toast({ title: "No JSON Data", description: "Please paste the JSON data for water bills.", variant: "destructive" });
+      return;
+    }
+    setIsImportingWaterMotherBills(true);
+
+    let parsedJsonData: any;
+    try {
+      parsedJsonData = JSON.parse(waterJsonInputString);
+    } catch (e) {
+      toast({
+        title: "Invalid JSON",
+        description: "The pasted text for water bills is not valid JSON. Please check the format.",
+        variant: "destructive",
+      });
+      setIsImportingWaterMotherBills(false);
+      return;
+    }
+    
+    let importedCount = 0;
+    const motherBillsCollection = collection(db, "mother-bills");
+    const recordsToImport = Object.values(parsedJsonData) as Array<Record<string, string | number>>;
+
+    for (const record of recordsToImport) {
+        try {
+            const billPeriod = (record["BILL FTM OF"] as string).split(" ");
+            const billingMonth = billPeriod[0];
+            const billingYear = parseInt(billPeriod[1], 10);
+            const totalConsumption = Number(record["M3 USED"]) || 0;
+            const totalAmountBilledStr = String(record[" TOTAL AMOUNT "] || "0").trim().replace("₱", "").replace(/,/g, "");
+            const totalAmountBilled = parseFloat(totalAmountBilledStr) || 0;
+
+            const newEntry: Omit<MotherBillEntry, "id" | "createdAt"> & { createdAt: any } = {
+                utilityType: 'water',
+                billingMonth,
+                billingYear,
+                pastReading: Number(record["PREVIOUS"]) || 0,
+                presentReading: Number(record["PRESENT"]) || 0,
+                totalConsumption,
+                totalAmountBilled,
+                notes: "Imported from pasted JSON (Water)",
+                createdAt: serverTimestamp(),
+            };
+
+            await addDoc(motherBillsCollection, newEntry);
+            importedCount++;
+        } catch (e) {
+            console.error("Error importing water mother bill record: ", record, e);
+        }
+    }
+
+    toast({
+      title: "Water Bill Import Complete",
+      description: `${importedCount} water mother bill records imported.`,
+    });
+    setWaterJsonInputString("");
+    setIsImportingWaterMotherBills(false);
+  };
+
 
   const canManageUsersAndData = userRole !== 'billing-officer';
 
@@ -241,9 +305,9 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-6"> 
               <div>
-                <h3 className="text-lg font-medium mb-1">Import Historical Mother Bills</h3>
+                <h3 className="text-lg font-medium mb-1">Import Historical Power Mother Bills</h3>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Import historical mother bill data from a predefined JSON structure embedded in the app.
+                  Import historical power mother bill data from a predefined JSON structure embedded in the app.
                 </p>
                 <Button onClick={handleImportData} disabled={isImporting}>
                   {isImporting ? (
@@ -251,8 +315,37 @@ export default function SettingsPage() {
                   ) : (
                     <DatabaseBackup className="mr-2 h-4 w-4" />
                   )}
-                  Import Historical Mother Bills
+                  Import Historical Power Bills
                 </Button>
+              </div>
+              <hr className="my-4"/>
+              <div>
+                 <h3 className="text-lg font-medium mb-1 flex items-center"><Droplet className="h-5 w-5 mr-2 text-primary"/>Import Water Mother Bills from JSON</h3>
+                 <p className="text-sm text-muted-foreground mb-3">
+                    Paste your JSON data for water mother bills below. The JSON should be an object where each key is an arbitrary ID and the value is an object with keys:
+                    "BILL FTM OF" (e.g., "January 2023"), "PREVIOUS" (number), "PRESENT" (number), "M3 USED" (number), and " TOTAL AMOUNT " (string or number).
+                 </p>
+                 <div className="space-y-4 max-w-lg">
+                    <Textarea
+                      value={waterJsonInputString}
+                      onChange={(e) => setWaterJsonInputString(e.target.value)}
+                      placeholder='{\n  "-ID1": { "BILL FTM OF": "January 2023", "PREVIOUS": 100, "PRESENT": 150, "M3 USED": 50, " TOTAL AMOUNT ": "5000.00" }\n}'
+                      className="mt-1 min-h-[150px] font-mono text-xs"
+                      disabled={isImportingWaterMotherBills}
+                    />
+                    <Button
+                      onClick={handleImportWaterMotherBills}
+                      disabled={isImportingWaterMotherBills || !waterJsonInputString.trim()}
+                      className="w-full"
+                    >
+                      {isImportingWaterMotherBills ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <UploadCloud className="mr-2 h-4 w-4" />
+                      )}
+                      Import Water Mother Bills
+                    </Button>
+                 </div>
               </div>
               <hr className="my-4"/>
               <div>
