@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -11,7 +10,12 @@ service cloud.firestore {
 
     // Rules for the 'power-readings' collection - OPEN ACCESS
     match /power-readings/{readingId} {
-      allow read, write: if true; // Allows anyone to read, create, update, delete
+      allow read, write, delete: if true; // Allows anyone to read, create, update, delete
+    }
+
+    // Rules for the 'water-readings' collection - OPEN ACCESS
+    match /water-readings/{readingId} {
+      allow read, write, delete: if true; // Allows anyone to read, create, update, delete
     }
 
     // Rules for the 'mother-bills' collection - OPEN ACCESS
@@ -37,10 +41,7 @@ service cloud.firestore {
 
     // Rules for the 'invoices' collection - OPEN ACCESS
     match /invoices/{invoiceId} {
-      allow read, write: if true; // Allows anyone to read, create, update, delete
+      allow read, write, delete: if true; // Allows anyone to read, create, update, delete
     }
-
-    // Add rules for other collections here as you create them.
-    // If you want them to also be completely open, use 'allow read, write: if true;'
   }
 }
