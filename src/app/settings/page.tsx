@@ -145,17 +145,48 @@ export default function SettingsPage() {
 
     let importedCount = 0;
     let skippedCount = 0;
-    const recordsToImport = Object.values(parsedJsonData) as Array<Record<string, string | number>>;
+    let recordsToImport: Array<Record<string, string | number>>;
 
     const collectionName = clientImportType === 'power' ? 'power-readings' : 'water-readings';
     const readingsCollection = collection(db, collectionName);
-    const consumptionKey = clientImportType === 'power' ? 'KWH Used' : 'M3 Used';
+
+    // Logic diverges based on expected JSON format for power vs water
+    if (clientImportType === 'power') {
+      if (typeof parsedJsonData !== 'object' || parsedJsonData === null || Array.isArray(parsedJsonData)) {
+        toast({ title: "Invalid JSON Format", description: "Power readings import expects a JSON object of objects.", variant: "destructive" });
+        setIsImportingClientReadings(false);
+        return;
+      }
+      recordsToImport = Object.values(parsedJsonData);
+    } else { // water
+      if (!Array.isArray(parsedJsonData)) {
+        toast({ title: "Invalid JSON Format", description: "Water readings import expects a JSON array of objects.", variant: "destructive" });
+        setIsImportingClientReadings(false);
+        return;
+      }
+      recordsToImport = parsedJsonData;
+    }
+
+    const consumptionKey = clientImportType === 'power' ? 'KWH Used' : 'M3 (Consumed)';
 
     for (const record of recordsToImport) {
       try {
-        const billingMonthYear = (record["BILLING MONTH"] as string).split(" ");
+        const billingMonthYearString = record["BILLING MONTH"] as string;
+        if (!billingMonthYearString || !billingMonthYearString.trim()) {
+          console.warn("Skipping record due to empty billing month:", record);
+          skippedCount++;
+          continue;
+        }
+        
+        const billingMonthYear = billingMonthYearString.split(" ");
         const billingMonth = billingMonthYear[0];
         const billingYear = parseInt(billingMonthYear[1], 10);
+
+        if (!billingMonth || isNaN(billingYear)) {
+          console.warn(`Invalid billing period: ${billingMonthYearString}`, record);
+          skippedCount++;
+          continue;
+        }
 
         const q = query(
           readingsCollection,
@@ -410,13 +441,16 @@ export default function SettingsPage() {
                       placeholder={
                         clientImportType === 'power'
                           ? '{\n  "-ID1": { "BILLING MONTH": "January 2023", "Previous": 100, "Present": 200, "KWH Used": 100 },\n  "-ID2": { "BILLING MONTH": "February 2023", "Previous": 200, "Present": 350, "KWH Used": 150 }\n}'
-                          : '{\n  "-ID1": { "BILLING MONTH": "January 2023", "Previous": 100, "Present": 200, "M3 Used": 100 },\n  "-ID2": { "BILLING MONTH": "February 2023", "Previous": 200, "Present": 350, "M3 Used": 150 }\n}'
+                          : '[\n  {\n    "BILLING MONTH": "May 2025",\n    "Previous": "369",\n    "Present": "389",\n    "M3 (Consumed)": "20"\n  }\n]'
                       }
                       className="mt-1 min-h-[150px] font-mono text-xs" 
                       disabled={isImportingClientReadings}
                     />
                      <p className="text-xs text-muted-foreground mt-1">
-                      JSON format must be an object of objects. Keys for consumption are "{clientImportType === 'power' ? 'KWH Used' : 'M3 Used'}", "Previous", "Present", and "BILLING MONTH".
+                      {clientImportType === 'power'
+                        ? 'JSON format must be an object of objects. Keys are "KWH Used", "Previous", "Present", and "BILLING MONTH".'
+                        : 'JSON format must be an array of objects. Keys are "M3 (Consumed)", "Previous", "Present", and "BILLING MONTH".'
+                      }
                     </p>
                   </div>
                   <div>
@@ -546,5 +580,3 @@ export default function SettingsPage() {
     </main>
   );
 }
-
-    
