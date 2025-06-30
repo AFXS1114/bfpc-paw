@@ -167,6 +167,8 @@ export interface InvoiceData {
   clientPreviousReading?: number;
   clientPresentReading?: number;
   clientTotalKwh?: number;
+  clientTotalM3?: number;
+  consumptionUnit?: 'kWh' | 'm³';
   motherBillTotalAmount?: number;   // Mother bill for THAT period
   motherBillTotalConsumption?: number; // Mother bill for THAT period
   basicRate?: number;               // Basic rate for THAT period

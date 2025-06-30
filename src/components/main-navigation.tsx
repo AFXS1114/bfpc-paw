@@ -31,6 +31,8 @@ const powerNavItems: NavItem[] = [
   { href: "/power", label: "Power Entry", icon: Zap },
   { href: "/power-readings", label: "Power Readings", icon: ListTree },
   { href: "/power-readings/reading-forms", label: "Reading Forms", icon: ClipboardList },
+  { href: "/invoicing", label: "Create Invoice", icon: InvoiceIcon },
+  { href: "/batch-invoice-power", label: "Batch Invoice", icon: Layers },
 ];
 
 const waterNavItems: NavItem[] = [
@@ -38,14 +40,14 @@ const waterNavItems: NavItem[] = [
   { href: "/water", label: "Water Entry", icon: Droplet },
   { href: "/water-readings", label: "Water Readings", icon: ListTree },
   { href: "/water-readings/reading-forms", label: "Reading Forms", icon: ClipboardList },
+  { href: "/invoicing", label: "Create Invoice", icon: InvoiceIcon },
+  { href: "/batch-invoice-water", label: "Batch Invoice", icon: Layers },
 ];
 
 const sharedFinancialNavItems: NavItem[] = [
   { href: "/clients", label: "Clients", icon: Users },
-  { href: "/invoicing", label: "Create Invoice", icon: InvoiceIcon },
-  { href: "/batch-invoice", label: "Batch Invoice", icon: Layers },
   { href: "/invoices", label: "Invoice Records", icon: Archive },
-  { href: "/manage-records", label: "Manage Records", icon: DatabaseZap, restrictedToRoles: ["billing-officer"] },
+  { href: "/manage-records", label: "Manage Records", icon: DatabaseZap, restrictedToRoles: ["system-admin"] },
   { href: "/statistics", label: "Statistics", icon: PieChart },
 ];
 
@@ -68,7 +70,17 @@ export function MainNavigation({ userRole: initialUserRole }: { userRole: AppUse
 
   const renderNavItems = (items: NavItem[]) => {
     return items
-      .filter(item => !(item.restrictedToRoles && currentUserRole && item.restrictedToRoles.includes(currentUserRole)))
+      .filter(item => {
+        // Hide item if user role is in the restricted list
+        if (item.restrictedToRoles && currentUserRole) {
+            return !item.restrictedToRoles.includes(currentUserRole);
+        }
+        // Special case for 'manage-records': only 'system-admin' can see it.
+        if (item.href === '/manage-records') {
+            return currentUserRole === 'system-admin';
+        }
+        return true;
+      })
       .map((item) => {
         const NavIcon = item.icon; 
         
@@ -78,12 +90,11 @@ export function MainNavigation({ userRole: initialUserRole }: { userRole: AppUse
         }
         
         // Special case to prevent parent from being active if child is active
-        if (item.href === "/power-readings" && pathname !== "/power-readings") {
+        const specificReadingPaths = ["/power-readings/reading-forms", "/water-readings/reading-forms"];
+        if ((item.href === "/power-readings" || item.href === "/water-readings") && specificReadingPaths.includes(pathname)) {
              isActive = false;
         }
-        if (item.href === "/water-readings" && pathname !== "/water-readings") {
-             isActive = false;
-        }
+
 
         return (
           <SidebarMenuItem key={item.href}>

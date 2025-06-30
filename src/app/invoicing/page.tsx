@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,9 +22,10 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp, addDoc, serverTimestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument, ReadingPerformerDocument, VerifierDocument, InvoiceRecordEntry } from "@/types";
-import { FileText, Search, Loader2, Download, UserCog, UserCheck, Edit3 } from "lucide-react";
+import type { ClientDocument, PowerReadingDocument, WaterReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument, ReadingPerformerDocument, VerifierDocument, InvoiceRecordEntry, UtilityType } from "@/types";
+import { FileText, Search, Loader2, Download, UserCog, UserCheck, Edit3, Zap, Droplet } from "lucide-react";
 import { format } from "date-fns";
+import { useModule } from "@/context/module-context";
 
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
@@ -41,7 +42,6 @@ if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
 } else {
   console.error("Failed to load pdfMake VFS fonts on Invoicing page. Structure of 'pdfFonts':", JSON.stringify(pdfFonts, null, 2));
 }
-
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -75,6 +75,8 @@ async function imageToDataUrl(src: string): Promise<string | null> {
 
 export default function InvoicingPage() {
   const { toast } = useToast();
+  const { selectedModule } = useModule();
+
   const [clients, setClients] = useState<ClientDocument[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   
@@ -89,57 +91,49 @@ export default function InvoicingPage() {
   const [selectedBillingMonth, setSelectedBillingMonth] = useState<string>(MONTHS[new Date().getMonth()]);
   const [selectedBillingYear, setSelectedBillingYear] = useState<string>(currentYear.toString());
   const [selectedReadingPerformerId, setSelectedReadingPerformerId] = useState<string>("");
-  const [selectedSignatoryId, setSelectedSignatoryId] = useState<string>(""); // For "Prepared By"
+  const [selectedSignatoryId, setSelectedSignatoryId] = useState<string>("");
   const [selectedVerifierId, setSelectedVerifierId] = useState<string>("");
 
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-  // Fetch clients
-  useEffect(() => {
-    setIsLoadingClients(true);
-    const unsub = onSnapshot(query(collection(db, "clients"), orderBy("clientName", "asc")), (snap) => {
-      setClients(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClientDocument)));
-      setIsLoadingClients(false);
-    }, (err) => { console.error("Err clients:", err); toast({ title: "Error", description: "Failed to fetch clients."}); setIsLoadingClients(false); });
-    return () => unsub();
-  }, [toast]);
+  const utilityConfig = useMemo(() => {
+    if (selectedModule === 'water') {
+      return {
+        utilityType: 'water' as UtilityType,
+        pageTitle: 'Create Water Invoice',
+        readingsCollection: 'water-readings',
+        consumptionUnit: 'm³',
+        consumptionField: 'totalM3',
+        invoiceDesc: 'water',
+        icon: <Droplet className="h-6 w-6 text-primary" />,
+      };
+    }
+    // Default to power
+    return {
+      utilityType: 'power' as UtilityType,
+      pageTitle: 'Create Power Invoice',
+      readingsCollection: 'power-readings',
+      consumptionUnit: 'kWh',
+      consumptionField: 'totalKwh',
+      invoiceDesc: 'power',
+      icon: <Zap className="h-6 w-6 text-primary" />,
+    };
+  }, [selectedModule]);
 
-  // Fetch reading performers
+  // Fetch clients, performers, signatories, verifiers
   useEffect(() => {
-    setIsLoadingReadingPerformers(true);
-    const unsub = onSnapshot(query(collection(db, "reading-performers"), orderBy("name", "asc")), (snap) => {
-      setReadingPerformers(snap.docs.map(d => ({ id: d.id, ...d.data() } as ReadingPerformerDocument)));
-      setIsLoadingReadingPerformers(false);
-    }, (err) => { console.error("Err performers:", err); toast({ title: "Error", description: "Failed to fetch reading performers."}); setIsLoadingReadingPerformers(false); });
-    return () => unsub();
+    const unsubClients = onSnapshot(query(collection(db, "clients"), orderBy("clientName", "asc")), snap => { setClients(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClientDocument))); setIsLoadingClients(false); }, err => { console.error("Err clients:", err); toast({ title: "Error", description: "Failed to fetch clients." }); setIsLoadingClients(false); });
+    const unsubPerformers = onSnapshot(query(collection(db, "reading-performers"), orderBy("name", "asc")), snap => { setReadingPerformers(snap.docs.map(d => ({ id: d.id, ...d.data() } as ReadingPerformerDocument))); setIsLoadingReadingPerformers(false); }, err => { console.error("Err performers:", err); toast({ title: "Error", description: "Failed to fetch reading performers." }); setIsLoadingReadingPerformers(false); });
+    const unsubSignatories = onSnapshot(query(collection(db, "signatories"), orderBy("name", "asc")), snap => { setSignatories(snap.docs.map(d => ({ id: d.id, ...d.data() } as SignatoryDocument))); setIsLoadingSignatories(false); }, err => { console.error("Err signatories:", err); toast({ title: "Error", description: "Failed to fetch signatories." }); setIsLoadingSignatories(false); });
+    const unsubVerifiers = onSnapshot(query(collection(db, "verifiers"), orderBy("name", "asc")), snap => { setVerifiers(snap.docs.map(d => ({ id: d.id, ...d.data() } as VerifierDocument))); setIsLoadingVerifiers(false); }, err => { console.error("Err verifiers:", err); toast({ title: "Error", description: "Failed to fetch verifiers." }); setIsLoadingVerifiers(false); });
+    return () => { unsubClients(); unsubPerformers(); unsubSignatories(); unsubVerifiers(); };
   }, [toast]);
-
-  // Fetch signatories (for "Prepared By")
-  useEffect(() => {
-    setIsLoadingSignatories(true);
-    const unsub = onSnapshot(query(collection(db, "signatories"), orderBy("name", "asc")), (snap) => {
-      setSignatories(snap.docs.map(d => ({ id: d.id, ...d.data() } as SignatoryDocument)));
-      setIsLoadingSignatories(false);
-    }, (err) => { console.error("Err signatories:", err); toast({ title: "Error", description: "Failed to fetch signatories."}); setIsLoadingSignatories(false); });
-    return () => unsub();
-  }, [toast]);
-
-  // Fetch verifiers
-  useEffect(() => {
-    setIsLoadingVerifiers(true);
-    const unsub = onSnapshot(query(collection(db, "verifiers"), orderBy("name", "asc")), (snap) => {
-      setVerifiers(snap.docs.map(d => ({ id: d.id, ...d.data() } as VerifierDocument)));
-      setIsLoadingVerifiers(false);
-    }, (err) => { console.error("Err verifiers:", err); toast({ title: "Error", description: "Failed to fetch verifiers."}); setIsLoadingVerifiers(false); });
-    return () => unsub();
-  }, [toast]);
-
 
   const handleGenerateInvoicePreview = async () => {
     if (!selectedClientId || !selectedBillingMonth || !selectedBillingYear || !selectedReadingPerformerId || !selectedSignatoryId || !selectedVerifierId) {
-      toast({ title: "Missing Information", description: "Please select a client, billing period, reading performer, preparer (signatory), and verifier.", variant: "destructive" });
+      toast({ title: "Missing Information", description: "Please select all required fields.", variant: "destructive" });
       return;
     }
     setIsGeneratingPreview(true);
@@ -148,29 +142,29 @@ export default function InvoicingPage() {
     try {
       const client = clients.find(c => c.id === selectedClientId);
       if (!client) {
-        toast({ title: "Client Not Found", description: "Selected client data could not be found.", variant: "destructive" });
+        toast({ title: "Client Not Found", variant: "destructive" });
         setIsGeneratingPreview(false);
         return;
       }
 
-      const powerReadingQuery = query(
-        collection(db, "power-readings"),
+      const readingQuery = query(
+        collection(db, utilityConfig.readingsCollection),
         where("clientId", "==", selectedClientId),
         where("billingMonth", "==", selectedBillingMonth),
         where("billingYear", "==", parseInt(selectedBillingYear, 10)),
         limit(1)
       );
-      const powerReadingSnapshot = await getDocs(powerReadingQuery);
+      const readingSnapshot = await getDocs(readingQuery);
 
-      if (powerReadingSnapshot.empty) {
-        toast({ title: "Power Reading Not Found", variant: "destructive" });
+      if (readingSnapshot.empty) {
+        toast({ title: `${utilityConfig.utilityType.toUpperCase()} Reading Not Found`, variant: "destructive" });
         setIsGeneratingPreview(false); return;
       }
-      const powerReadingDoc = powerReadingSnapshot.docs[0].data() as PowerReadingDocument;
+      const readingDoc = readingSnapshot.docs[0].data() as PowerReadingDocument | WaterReadingDocument;
 
       const motherBillQuery = query(
         collection(db, "mother-bills"),
-        where("utilityType", "==", "power"),
+        where("utilityType", "==", utilityConfig.utilityType),
         where("billingMonth", "==", selectedBillingMonth),
         where("billingYear", "==", parseInt(selectedBillingYear, 10)),
         limit(1)
@@ -189,7 +183,8 @@ export default function InvoicingPage() {
       }
       
       const basicRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
-      const amountBeforeVAT = basicRate * powerReadingDoc.totalKwh;
+      const consumptionValue = (readingDoc as any)[utilityConfig.consumptionField] as number;
+      const amountBeforeVAT = basicRate * consumptionValue;
       const vatAmount = amountBeforeVAT * 0.12; 
       const totalAmountDue = amountBeforeVAT + vatAmount;
 
@@ -203,24 +198,30 @@ export default function InvoicingPage() {
         stallNo: client.stallNo,
         billingMonth: selectedBillingMonth,
         billingYear: parseInt(selectedBillingYear, 10),
-        clientPreviousReading: powerReadingDoc.previousReading,
-        clientPresentReading: powerReadingDoc.presentReading,
-        clientTotalKwh: powerReadingDoc.totalKwh,
+        
+        clientPreviousReading: readingDoc.previousReading,
+        clientPresentReading: readingDoc.presentReading,
+        clientTotalKwh: utilityConfig.utilityType === 'power' ? consumptionValue : undefined,
+        clientTotalM3: utilityConfig.utilityType === 'water' ? consumptionValue : undefined,
+        consumptionUnit: utilityConfig.consumptionUnit,
+
         motherBillTotalAmount: motherBill.totalAmountBilled,
         motherBillTotalConsumption: motherBill.totalConsumption,
         basicRate: basicRate,
         amountBeforeVAT: amountBeforeVAT,
         vatAmount: vatAmount,
         totalAmountDue: totalAmountDue,
-        invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-${selectedBillingYear}${MONTHS.indexOf(selectedBillingMonth).toString().padStart(2, '0')}`,
+        
+        invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-${utilityConfig.utilityType.toUpperCase()}-${selectedBillingYear}${MONTHS.indexOf(selectedBillingMonth).toString().padStart(2, '0')}`,
         invoiceDate: format(currentDate, "MMMM dd, yyyy"),
+        
         companyName: "BULAN FISH PORT COMPLEX",
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
-        companyAddressLine2: "", 
         paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office.",
+        
         readingPerformerName: performer?.name,
         readingPerformerPosition: performer?.position,
-        signatoryName: signatory?.name, // This is "Prepared By"
+        signatoryName: signatory?.name,
         signatoryPosition: signatory?.position,
         verifierName: verifier?.name,
         verifierDesignation: verifier?.designation,
@@ -252,54 +253,42 @@ export default function InvoicingPage() {
     const formatCurrency = (amount: number) => `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const generateInvoiceContent = (invoiceCopyData: InvoiceData, copyTitle: string) => {
-      const companyHeaderInfo: any[] = [];
-      if (logoDataUrl) {
-          companyHeaderInfo.push({ image: logoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const });
-      }
-      companyHeaderInfo.push(
-          { text: invoiceCopyData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
-          { text: invoiceCopyData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const}
-      );
-      if (invoiceCopyData.companyAddressLine2) {
-          companyHeaderInfo.push({ text: invoiceCopyData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const });
-      }
+        const consumptionUnit = invoiceCopyData.consumptionUnit || 'units';
+        const totalConsumptionValue = invoiceCopyData.clientTotalKwh ?? invoiceCopyData.clientTotalM3 ?? 0;
+        
+        const companyHeaderInfo: any[] = [];
+        if (logoDataUrl) {
+            companyHeaderInfo.push({ image: logoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const });
+        }
+        companyHeaderInfo.push(
+            { text: invoiceCopyData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
+            { text: invoiceCopyData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const}
+        );
+        if (invoiceCopyData.companyAddressLine2) {
+            companyHeaderInfo.push({ text: invoiceCopyData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const });
+        }
       
-      return [
-        { columns: [ companyHeaderInfo, [ { text: `INVOICE (${copyTitle})`, style: 'invoiceTitle', alignment: 'right' as const }, { text: `Invoice #: ${invoiceCopyData.invoiceNumber}`, alignment: 'right' as const, style: 'small' }, { text: `Date: ${invoiceCopyData.invoiceDate}`, alignment: 'right' as const, style: 'small' }, ] ], columnGap: 10, },
-        { canvas: [{ type: 'line' as const, x1: 0, y1: 3, x2: 515, y2: 3, lineWidth: 0.5, lineColor: '#cccccc' }], margin: [0, 3, 0, 5] as const },
-        { columns: [ [ { text: 'Bill To:', style: 'subheader' }, { text: invoiceCopyData.clientName, style: 'defaultCompact' }, { text: `Stall No: ${invoiceCopyData.stallNo}`, style: 'defaultCompact' }, ], [ { text: 'Billing Period:', style: 'subheader', alignment: 'right' as const }, { text: `${invoiceCopyData.billingMonth} ${invoiceCopyData.billingYear}`, alignment: 'right' as const, style: 'defaultCompact' }, ] ], columnGap: 10, margin: [0, 0, 0, 5] as const, },
-        { style: 'itemsTable', table: { widths: ['*', 50, 50, 50, 60, 65], body: [ [ { text: 'Description', style: 'tableHeader' }, { text: 'Prev.\n(kWh)', style: 'tableHeader', alignment: 'right' as const }, { text: 'Pres.\n(kWh)', style: 'tableHeader', alignment: 'right' as const }, { text: 'Cons.\n(kWh)', style: 'tableHeader', alignment: 'right' as const }, { text: 'Rate\n(P/kWh)', style: 'tableHeader', alignment: 'right' as const }, { text: 'Amount\n(P)', style: 'tableHeader', alignment: 'right' as const }, ], [ 'Power Consumption', { text: invoiceCopyData.clientPreviousReading?.toLocaleString() ?? 'N/A', alignment: 'right' as const }, { text: invoiceCopyData.clientPresentReading?.toLocaleString() ?? 'N/A', alignment: 'right' as const }, { text: invoiceCopyData.clientTotalKwh?.toLocaleString() ?? 'N/A', alignment: 'right' as const, bold: true }, { text: `P${(invoiceCopyData.basicRate ?? 0).toFixed(4)}`, alignment: 'right' as const }, { text: formatCurrency((invoiceCopyData.clientTotalKwh ?? 0) * (invoiceCopyData.basicRate ?? 0)), alignment: 'right' as const }, ] ] }, layout: { hLineWidth: function (i: number, node: any) { return (i === 0 || i === node.table.body.length) ? 0.5 : 0.5; }, vLineWidth: function (i: number, node: any) { return 0.5; }, hLineColor: function (i: number, node: any) { return '#BFBFBF'; }, vLineColor: function (i: number, node: any) { return '#BFBFBF'; }, paddingLeft: function(i: number, node: any) { return 3; }, paddingRight: function(i: number, node: any) { return 3; }, paddingTop: function(i: number, node: any) { return 1; }, paddingBottom: function(i: number, node: any) { return 1; } } },
-        { margin: [0, 2, 0, 2] as const, table: { widths: ['*'], body: [ [ { text: [ { text: 'Rate Basis (MB ', style: 'smallHeader' }, { text: `${invoiceCopyData.billingMonth} ${invoiceCopyData.billingYear}):`, style: 'smallHeader', bold: true }, { text: ` MB Amt: ${formatCurrency(invoiceCopyData.motherBillTotalAmount ?? 0)} | MB Cons: ${(invoiceCopyData.motherBillTotalConsumption ?? 0).toLocaleString()} kWh`, style: 'small' } ], fillColor: '#F5F5F5', border: [true, true, true, true] as const, borderColor: ['#E0E0E0', '#E0E0E0', '#E0E0E0', '#E0E0E0'] as const, margin: [0, 1] as const, } ] ] }, layout: 'noBorders' },
-        { columns: [ { width: '*', text: '' }, { width: 'auto', style: 'summaryTable', table: { widths: ['auto', 'auto'], body: [ ['Subtotal:', { text: formatCurrency(invoiceCopyData.amountBeforeVAT), alignment: 'right' as const }], ['VAT (12%):', { text: formatCurrency(invoiceCopyData.vatAmount), alignment: 'right' as const }], [{ text: 'Total Amount Due:', bold: true, style:'totalAmountKey' }, { text: formatCurrency(invoiceCopyData.totalAmountDue), alignment: 'right' as const, bold: true, style:'totalAmountValue' }] ] }, layout: 'noBorders' } ], margin: [0, 2, 0, 5] as const },
-        { text: '', margin: [0,0,0,5] as const}, 
-        invoiceCopyData.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 2, 0, 1] as const } : {text:''}, 
-        invoiceCopyData.paymentInstructions ? { text: invoiceCopyData.paymentInstructions, style: 'defaultCompact', margin: [0, 0, 0, 5] as const } : {text:''}, 
-        {
-            columns: [
-                (invoiceCopyData.readingPerformerName || invoiceCopyData.readingPerformerPosition) ? [
-                    { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 15] as const }, 
-                    { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
-                    { text: invoiceCopyData.readingPerformerName || '', style: 'defaultCompact', bold: true },
-                    { text: invoiceCopyData.readingPerformerPosition || '', style: 'small' },
-                ] : {text: ''},
-                (invoiceCopyData.signatoryName || invoiceCopyData.signatoryPosition) ? [ 
-                    { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 15] as const },
-                    { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
-                    { text: invoiceCopyData.signatoryName || '', style: 'defaultCompact', bold: true },
-                    { text: invoiceCopyData.signatoryPosition || '', style: 'small' },
-                ] : {text: ''},
-                (invoiceCopyData.verifierName || invoiceCopyData.verifierDesignation) ? [ 
-                    { text: 'Checked and Verified by:', style: 'small', margin: [0, 0, 0, 15] as const },
-                    { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
-                    { text: invoiceCopyData.verifierName || '', style: 'defaultCompact', bold: true },
-                    { text: invoiceCopyData.verifierDesignation || '', style: 'small' },
-                ] : {text: ''}
-            ],
-            columnGap: 10, 
-            margin: [0, 10, 0, 0] as const,
-        },
-        { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 20, 0, 0] as const }
-      ];
+        return [
+            { columns: [ companyHeaderInfo, [ { text: `INVOICE (${copyTitle})`, style: 'invoiceTitle', alignment: 'right' as const }, { text: `Invoice #: ${invoiceCopyData.invoiceNumber}`, alignment: 'right' as const, style: 'small' }, { text: `Date: ${invoiceCopyData.invoiceDate}`, alignment: 'right' as const, style: 'small' }, ] ], columnGap: 10, },
+            { canvas: [{ type: 'line' as const, x1: 0, y1: 3, x2: 515, y2: 3, lineWidth: 0.5, lineColor: '#cccccc' }], margin: [0, 3, 0, 5] as const },
+            { columns: [ [ { text: 'Bill To:', style: 'subheader' }, { text: invoiceCopyData.clientName, style: 'defaultCompact' }, { text: `Stall No: ${invoiceCopyData.stallNo}`, style: 'defaultCompact' }, ], [ { text: 'Billing Period:', style: 'subheader', alignment: 'right' as const }, { text: `${invoiceCopyData.billingMonth} ${invoiceCopyData.billingYear}`, alignment: 'right' as const, style: 'defaultCompact' }, ] ], columnGap: 10, margin: [0, 0, 0, 5] as const, },
+            { style: 'itemsTable', table: { widths: ['*', 50, 50, 50, 60, 65], body: [ [ { text: 'Description', style: 'tableHeader' }, { text: `Prev.\n(${consumptionUnit})`, style: 'tableHeader', alignment: 'right' as const }, { text: `Pres.\n(${consumptionUnit})`, style: 'tableHeader', alignment: 'right' as const }, { text: `Cons.\n(${consumptionUnit})`, style: 'tableHeader', alignment: 'right' as const }, { text: `Rate\n(P/${consumptionUnit})`, style: 'tableHeader', alignment: 'right' as const }, { text: 'Amount\n(P)', style: 'tableHeader', alignment: 'right' as const }, ], [ `${utilityConfig.utilityType === 'power' ? 'Power' : 'Water'} Consumption`, { text: invoiceCopyData.clientPreviousReading?.toLocaleString() ?? 'N/A', alignment: 'right' as const }, { text: invoiceCopyData.clientPresentReading?.toLocaleString() ?? 'N/A', alignment: 'right' as const }, { text: totalConsumptionValue.toLocaleString(), alignment: 'right' as const, bold: true }, { text: `P${(invoiceCopyData.basicRate ?? 0).toFixed(4)}`, alignment: 'right' as const }, { text: formatCurrency(totalConsumptionValue * (invoiceCopyData.basicRate ?? 0)), alignment: 'right' as const }, ] ] }, layout: { hLineWidth: function (i: number, node: any) { return (i === 0 || i === node.table.body.length) ? 0.5 : 0.5; }, vLineWidth: function (i: number, node: any) { return 0.5; }, hLineColor: function (i: number, node: any) { return '#BFBFBF'; }, vLineColor: function (i: number, node: any) { return '#BFBFBF'; }, paddingLeft: function(i: number, node: any) { return 3; }, paddingRight: function(i: number, node: any) { return 3; }, paddingTop: function(i: number, node: any) { return 1; }, paddingBottom: function(i: number, node: any) { return 1; } } },
+            { margin: [0, 2, 0, 2] as const, table: { widths: ['*'], body: [ [ { text: [ { text: 'Rate Basis (MB ', style: 'smallHeader' }, { text: `${invoiceCopyData.billingMonth} ${invoiceCopyData.billingYear}):`, style: 'smallHeader', bold: true }, { text: ` MB Amt: ${formatCurrency(invoiceCopyData.motherBillTotalAmount ?? 0)} | MB Cons: ${(invoiceCopyData.motherBillTotalConsumption ?? 0).toLocaleString()} ${consumptionUnit}`, style: 'small' } ], fillColor: '#F5F5F5', border: [true, true, true, true] as const, borderColor: ['#E0E0E0', '#E0E0E0', '#E0E0E0', '#E0E0E0'] as const, margin: [0, 1] as const, } ] ] }, layout: 'noBorders' },
+            { columns: [ { width: '*', text: '' }, { width: 'auto', style: 'summaryTable', table: { widths: ['auto', 'auto'], body: [ ['Subtotal:', { text: formatCurrency(invoiceCopyData.amountBeforeVAT), alignment: 'right' as const }], ['VAT (12%):', { text: formatCurrency(invoiceCopyData.vatAmount), alignment: 'right' as const }], [{ text: 'Total Amount Due:', bold: true, style:'totalAmountKey' }, { text: formatCurrency(invoiceCopyData.totalAmountDue), alignment: 'right' as const, bold: true, style:'totalAmountValue' }] ] }, layout: 'noBorders' } ], margin: [0, 2, 0, 5] as const },
+            { text: '', margin: [0,0,0,5] as const}, 
+            invoiceCopyData.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 2, 0, 1] as const } : {text:''}, 
+            invoiceCopyData.paymentInstructions ? { text: invoiceCopyData.paymentInstructions, style: 'defaultCompact', margin: [0, 0, 0, 5] as const } : {text:''}, 
+            {
+                columns: [
+                    (invoiceCopyData.readingPerformerName || invoiceCopyData.readingPerformerPosition) ? [ { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 15] as const }, { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const}, { text: invoiceCopyData.readingPerformerName || '', style: 'defaultCompact', bold: true }, { text: invoiceCopyData.readingPerformerPosition || '', style: 'small' }, ] : {text: ''},
+                    (invoiceCopyData.signatoryName || invoiceCopyData.signatoryPosition) ? [ { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 15] as const }, { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const}, { text: invoiceCopyData.signatoryName || '', style: 'defaultCompact', bold: true }, { text: invoiceCopyData.signatoryPosition || '', style: 'small' }, ] : {text: ''},
+                    (invoiceCopyData.verifierName || invoiceCopyData.verifierDesignation) ? [ { text: 'Checked and Verified by:', style: 'small', margin: [0, 0, 0, 15] as const }, { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const}, { text: invoiceCopyData.verifierName || '', style: 'defaultCompact', bold: true }, { text: invoiceCopyData.verifierDesignation || '', style: 'small' }, ] : {text: ''}
+                ],
+                columnGap: 10, 
+                margin: [0, 10, 0, 0] as const,
+            },
+            { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 20, 0, 0] as const }
+        ];
     };
     
     const documentDefinition: any = {
@@ -312,7 +301,6 @@ export default function InvoicingPage() {
     try {
       pdfMake.createPdf(documentDefinition).download(`Invoice-${invoiceData.invoiceNumber}.pdf`);
       
-      // Save invoice record to Firestore
       const clientDoc = clients.find(c => c.id === selectedClientId);
       if (clientDoc) {
         const invoiceRecord: Omit<InvoiceRecordEntry, 'id' | 'createdAt' | 'invoiceDate' | 'paidAt'> & { createdAt: any, invoiceDate: any, paidAt?: any } = {
@@ -321,9 +309,9 @@ export default function InvoicingPage() {
             clientId: clientDoc.id,
             clientName: clientDoc.clientName,
             stallNo: clientDoc.stallNo,
-            invoiceDate: serverTimestamp(), // Date PDF was generated/saved
-            displayInvoiceDate: invoiceData.invoiceDate, // Date shown on PDF
-            billingPeriodDescription: `Power - ${invoiceData.billingMonth} ${invoiceData.billingYear}`,
+            invoiceDate: serverTimestamp(),
+            displayInvoiceDate: invoiceData.invoiceDate,
+            billingPeriodDescription: `${utilityConfig.utilityType.charAt(0).toUpperCase() + utilityConfig.utilityType.slice(1)} - ${invoiceData.billingMonth} ${invoiceData.billingYear}`,
             totalAmountDue: invoiceData.totalAmountDue,
             status: 'unpaid',
             createdAt: serverTimestamp(),
@@ -331,7 +319,7 @@ export default function InvoicingPage() {
         await addDoc(collection(db, "invoices"), invoiceRecord);
         toast({ title: "PDF Exported & Invoice Saved", description: `Invoice ${invoiceData.invoiceNumber} saved to records.` });
       } else {
-        toast({ title: "PDF Exported (Record Not Saved)", description: "Client details missing for saving record.", variant: "destructive"});
+        toast({ title: "PDF Exported (Record Not Saved)", variant: "destructive"});
       }
 
     } catch(e) {
@@ -350,12 +338,15 @@ export default function InvoicingPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <PageHeader title="Create Invoice" />
+      <PageHeader title={utilityConfig.pageTitle} />
       <div className="flex-1 space-y-6 p-4 md:p-6">
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Search className="h-6 w-6 text-primary" />Select Invoice Parameters</CardTitle>
-            <CardDescription>Choose client, period, and personnel for the invoice.</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+                {utilityConfig.icon}
+                Select Invoice Parameters
+            </CardTitle>
+            <CardDescription>Choose client, period, and personnel for the {utilityConfig.invoiceDesc} invoice.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -427,7 +418,7 @@ export default function InvoicingPage() {
                     <h4 className="font-semibold mb-2">Quick Data Summary:</h4>
                     <p><strong>Client:</strong> {invoiceData.clientName} ({invoiceData.stallNo})</p>
                     <p><strong>Period:</strong> {invoiceData.billingMonth} {invoiceData.billingYear}</p>
-                    <p><strong>Total kWh:</strong> {invoiceData.clientTotalKwh?.toLocaleString() ?? 'N/A'}</p>
+                    <p><strong>Total {invoiceData.consumptionUnit}:</strong> {(invoiceData.clientTotalKwh ?? invoiceData.clientTotalM3)?.toLocaleString() ?? 'N/A'}</p>
                     <p><strong>Total Amount Due:</strong> P{invoiceData.totalAmountDue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
             </CardContent>

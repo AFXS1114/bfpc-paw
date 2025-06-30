@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { ChangeEvent } from 'react';
@@ -34,7 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp, addDoc, serverTimestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument, InvoiceRecordEntry } from "@/types";
+import type { ClientDocument, WaterReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument, InvoiceRecordEntry } from "@/types";
 import { Search, Loader2, Download, Layers } from "lucide-react";
 import { format, isValid } from "date-fns";
 
@@ -60,14 +59,14 @@ const MONTHS_ARRAY = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-export default function BatchInvoicePowerPage() {
+export default function BatchInvoiceWaterPage() {
   const { toast } = useToast();
   const [clients, setClients] = useState<ClientDocument[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   
   const [selectedClientId, setSelectedClientId] = useState<string>("");
 
-  const [powerReadings, setPowerReadings] = useState<PowerReadingDocument[]>([]);
+  const [waterReadings, setWaterReadings] = useState<WaterReadingDocument[]>([]);
   const [isLoadingReadings, setIsLoadingReadings] = useState(false);
   const [selectedReadingIds, setSelectedReadingIds] = useState<Set<string>>(new Set());
 
@@ -94,34 +93,33 @@ export default function BatchInvoicePowerPage() {
   const handleFetchReadings = async () => {
     if (!selectedClientId) {
       toast({ title: "Missing Information", description: "Please select a client.", variant: "destructive" });
-      setPowerReadings([]);
+      setWaterReadings([]);
       setSelectedReadingIds(new Set());
       return;
     }
     setIsLoadingReadings(true);
-    setPowerReadings([]);
+    setWaterReadings([]);
     setSelectedReadingIds(new Set());
 
     try {
       const readingsQuery = query(
-        collection(db, "power-readings"),
+        collection(db, "water-readings"),
         where("clientId", "==", selectedClientId),
-        orderBy("billingYear", "asc"), // Order by year first
-        orderBy("billingMonth", "asc") // Then by month
+        orderBy("billingYear", "asc"),
+        orderBy("billingMonth", "asc")
       );
       const snapshot = await getDocs(readingsQuery);
       const fetchedReadings = snapshot.docs.map(doc => {
         const data = doc.data();
-        // Ensure dateBilled and createdAt are properly converted from Timestamp to Date
-        let dateBilled = new Date(); // Default to now if conversion fails
+        let dateBilled = new Date();
         if (data.dateBilled && (data.dateBilled as Timestamp).toDate) {
             dateBilled = (data.dateBilled as Timestamp).toDate();
-        } else if (data.dateBilled) { // Handle if it's already a Date string or object (less likely from Firestore directly)
+        } else if (data.dateBilled) {
             const parsedDate = new Date(data.dateBilled);
             if (isValid(parsedDate)) dateBilled = parsedDate;
         }
 
-        let createdAt = new Date(); // Default to now
+        let createdAt = new Date();
         if (data.createdAt && (data.createdAt as Timestamp).toDate) {
             createdAt = (data.createdAt as Timestamp).toDate();
         } else if (data.createdAt) {
@@ -134,15 +132,15 @@ export default function BatchInvoicePowerPage() {
           id: doc.id,
           dateBilled: dateBilled,
           createdAt: createdAt,
-        } as PowerReadingDocument;
+        } as WaterReadingDocument;
       });
-      setPowerReadings(fetchedReadings);
+      setWaterReadings(fetchedReadings);
       if (fetchedReadings.length === 0) {
-        toast({ title: "No Readings", description: "No power readings found for the selected client.", variant: "default" });
+        toast({ title: "No Readings", description: "No water readings found for the selected client.", variant: "default" });
       }
     } catch (error) {
-      console.error("Error fetching power readings: ", error);
-      toast({ title: "Error", description: "Could not fetch power readings.", variant: "destructive" });
+      console.error("Error fetching water readings: ", error);
+      toast({ title: "Error", description: "Could not fetch water readings.", variant: "destructive" });
     } finally {
       setIsLoadingReadings(false);
     }
@@ -162,14 +160,14 @@ export default function BatchInvoicePowerPage() {
 
   const handleSelectAllReadings = (checked: boolean | string) => {
     if (checked) {
-      const allIds = new Set(powerReadings.map(r => r.id));
+      const allIds = new Set(waterReadings.map(r => r.id));
       setSelectedReadingIds(allIds);
     } else {
       setSelectedReadingIds(new Set());
     }
   };
 
-  const isAllSelected = powerReadings.length > 0 && selectedReadingIds.size === powerReadings.length;
+  const isAllSelected = waterReadings.length > 0 && selectedReadingIds.size === waterReadings.length;
 
   async function imageToDataUrl(src: string): Promise<string | null> {
     try {
@@ -212,8 +210,8 @@ export default function BatchInvoicePowerPage() {
     const tableBody: any[] = [
       [ // Headers
         { text: 'Billing Period', style: 'tableHeader' },
-        { text: 'Cons.\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Rate\n(P/kWh)', style: 'tableHeader', alignment: 'right' as const },
+        { text: 'Cons.\n(m³)', style: 'tableHeader', alignment: 'right' as const },
+        { text: 'Rate\n(P/m³)', style: 'tableHeader', alignment: 'right' as const },
         { text: 'Amount\n(P)', style: 'tableHeader', alignment: 'right' as const },
       ]
     ];
@@ -384,13 +382,13 @@ export default function BatchInvoicePowerPage() {
 
 
     for (const readingId of selectedReadingIds) {
-      const reading = powerReadings.find(r => r.id === readingId);
+      const reading = waterReadings.find(r => r.id === readingId);
       if (!reading) continue;
 
       try {
         const motherBillQuery = query(
           collection(db, "mother-bills"),
-          where("utilityType", "==", "power"),
+          where("utilityType", "==", "water"),
           where("billingMonth", "==", reading.billingMonth),
           where("billingYear", "==", reading.billingYear),
           limit(1)
@@ -410,12 +408,12 @@ export default function BatchInvoicePowerPage() {
         }
 
         const basicRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
-        const itemAmountBeforeVAT = basicRate * reading.totalKwh;
+        const itemAmountBeforeVAT = basicRate * reading.totalM3;
         overallAmountBeforeVAT += itemAmountBeforeVAT;
         
         lineItems.push({
-            description: `Power Consumption - ${reading.billingMonth} ${reading.billingYear}`,
-            consumption: reading.totalKwh,
+            description: `Water Consumption - ${reading.billingMonth} ${reading.billingYear}`,
+            consumption: reading.totalM3,
             rate: basicRate,
             amount: itemAmountBeforeVAT,
         });
@@ -456,12 +454,12 @@ export default function BatchInvoicePowerPage() {
         clientName: client.clientName,
         stallNo: client.stallNo,
         billingMonth: "Various", 
-        billingYear: 0, // Using 0 to indicate "All Periods" when month is "Various"
+        billingYear: 0,
         lineItems: lineItems,
         amountBeforeVAT: overallAmountBeforeVAT,
         vatAmount: overallVatAmount,
         totalAmountDue: overallTotalAmountDue,
-        invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-BATCH-ALLTIME`,
+        invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-BATCH-WATER-ALLTIME`,
         invoiceDate: displayInvoiceDate,
         companyName: "BULAN FISH PORT COMPLEX",
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
@@ -501,18 +499,17 @@ export default function BatchInvoicePowerPage() {
     };
     
     try {
-      pdfMake.createPdf(documentDefinition).download(`BatchInvoice-${client.stallNo}-AllPeriods.pdf`);
+      pdfMake.createPdf(documentDefinition).download(`BatchInvoice-Water-${client.stallNo}-AllPeriods.pdf`);
       
-      // Save invoice record to Firestore
       const invoiceRecord: Omit<InvoiceRecordEntry, 'id' | 'createdAt' | 'invoiceDate' | 'paidAt'> & { createdAt: any, invoiceDate: any, paidAt?: any } = {
           invoiceNumber: consolidatedInvoiceData.invoiceNumber,
           invoiceType: 'batch',
           clientId: client.id,
           clientName: client.clientName,
           stallNo: client.stallNo,
-          invoiceDate: serverTimestamp(), // Date PDF was generated/saved
-          displayInvoiceDate: consolidatedInvoiceData.invoiceDate, // Date shown on PDF
-          billingPeriodDescription: "Consolidated Power - All Selected Periods",
+          invoiceDate: serverTimestamp(),
+          displayInvoiceDate: consolidatedInvoiceData.invoiceDate,
+          billingPeriodDescription: "Consolidated Water - All Selected Periods",
           totalAmountDue: consolidatedInvoiceData.totalAmountDue,
           status: 'unpaid',
           createdAt: serverTimestamp(),
@@ -520,13 +517,13 @@ export default function BatchInvoicePowerPage() {
       await addDoc(collection(db, "invoices"), invoiceRecord);
 
       if (!hasErrors) {
-        toast({ title: "Batch Invoice PDF Exported & Saved", description: `Consolidated invoice for ${client.clientName} (All Periods) downloaded and record saved.` });
+        toast({ title: "Batch Invoice PDF Exported & Saved", description: `Consolidated water invoice for ${client.clientName} (All Periods) downloaded and record saved.` });
       } else {
-        toast({ title: "Batch Invoice PDF Exported & Saved (with Skips)", description: `Consolidated invoice downloaded and record saved, but some periods were skipped due to missing data.`, variant: "default", duration: 7000 });
+        toast({ title: "Batch Invoice PDF Exported & Saved (with Skips)", description: `Consolidated water invoice downloaded and record saved, but some periods were skipped.`, variant: "default", duration: 7000 });
       }
     } catch (e) {
         console.error("Error exporting batch PDF or saving invoice: ", e);
-        toast({ title: "PDF Export Failed", description: "Could not export batch invoice to PDF or save record.", variant: "destructive"});
+        toast({ title: "PDF Export Failed", description: "Could not export batch water invoice to PDF or save record.", variant: "destructive"});
     } finally {
         setIsGeneratingPdf(false);
     }
@@ -535,7 +532,7 @@ export default function BatchInvoicePowerPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <PageHeader title="Batch Power Invoice Generation" />
+      <PageHeader title="Batch Water Invoice Generation" />
       <div className="flex-1 space-y-6 p-4 md:p-6">
         <Card className="shadow-lg">
           <CardHeader>
@@ -544,7 +541,7 @@ export default function BatchInvoicePowerPage() {
               Select Client
             </CardTitle>
             <CardDescription>
-              Choose a client to fetch all their power readings for batch invoicing.
+              Choose a client to fetch all their water readings for batch invoicing.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -553,7 +550,7 @@ export default function BatchInvoicePowerPage() {
                 <Label htmlFor="select-client">Client Name</Label>
                 <Select
                   value={selectedClientId}
-                  onValueChange={(value) => { setSelectedClientId(value); setPowerReadings([]); setSelectedReadingIds(new Set());}}
+                  onValueChange={(value) => { setSelectedClientId(value); setWaterReadings([]); setSelectedReadingIds(new Set());}}
                   disabled={isLoadingClients}
                 >
                   <SelectTrigger id="select-client" className="mt-1">
@@ -591,7 +588,7 @@ export default function BatchInvoicePowerPage() {
             </Card>
         )}
 
-        {powerReadings.length > 0 && !isLoadingReadings && (
+        {waterReadings.length > 0 && !isLoadingReadings && (
           <Card className="shadow-lg mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -620,12 +617,12 @@ export default function BatchInvoicePowerPage() {
                     </TableHead>
                     <TableHead>Billing Period</TableHead>
                     <TableHead>Date Billed</TableHead>
-                    <TableHead className="text-right">Total kWh</TableHead>
+                    <TableHead className="text-right">Total m³</TableHead>
                     <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {powerReadings.map((reading) => (
+                  {waterReadings.map((reading) => (
                     <TableRow key={reading.id} data-state={selectedReadingIds.has(reading.id) ? "selected" : ""}>
                       <TableCell>
                         <Checkbox
@@ -636,7 +633,7 @@ export default function BatchInvoicePowerPage() {
                       </TableCell>
                       <TableCell>{reading.billingMonth} {reading.billingYear}</TableCell>
                       <TableCell>{reading.dateBilled ? format(new Date(reading.dateBilled), "MMM dd, yyyy") : 'N/A'}</TableCell>
-                      <TableCell className="text-right font-semibold">{reading.totalKwh.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold">{reading.totalM3.toLocaleString()}</TableCell>
                       <TableCell className="max-w-[200px] truncate" title={reading.notes}>{reading.notes || "-"}</TableCell>
                     </TableRow>
                   ))}
