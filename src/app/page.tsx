@@ -6,16 +6,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Zap, Droplet } from "lucide-react";
 import { useModule } from '@/context/module-context';
 import type { Module } from '@/context/module-context';
+import { useTheme } from '@/context/theme-context';
 
 export default function DashboardPage() {
   const { setSelectedModule } = useModule();
+  const { setTheme } = useTheme();
   const router = useRouter();
 
   const handleSelectModule = (module: Module) => {
     setSelectedModule(module);
     if (module === 'power') {
+      setTheme('fire-dark');
       router.push('/power');
     } else {
+      setTheme('ocean');
       router.push('/water');
     }
   };
