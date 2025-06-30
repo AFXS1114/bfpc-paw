@@ -221,13 +221,16 @@ export default function SettingsPage() {
     }
     setIsImportingWaterMotherBills(true);
 
-    let parsedJsonData: any;
+    let parsedJsonData: any[];
     try {
       parsedJsonData = JSON.parse(waterJsonInputString);
+      if (!Array.isArray(parsedJsonData)) {
+          throw new Error("JSON data is not an array.");
+      }
     } catch (e) {
       toast({
         title: "Invalid JSON",
-        description: "The pasted text for water bills is not valid JSON. Please check the format.",
+        description: "The pasted text is not a valid JSON array. Please check the format.",
         variant: "destructive",
       });
       setIsImportingWaterMotherBills(false);
@@ -235,15 +238,29 @@ export default function SettingsPage() {
     }
     
     let importedCount = 0;
+    let skippedCount = 0;
     const motherBillsCollection = collection(db, "mother-bills");
-    const recordsToImport = Object.values(parsedJsonData) as Array<Record<string, string | number>>;
 
-    for (const record of recordsToImport) {
+    for (const record of parsedJsonData) {
         try {
-            const billPeriod = (record["BILL FTM OF"] as string).split(" ");
+            const billingPeriodString = record["BILLING MONTH"] as string;
+            if (!billingPeriodString || !billingPeriodString.trim()) {
+                console.warn("Skipping record due to empty billing month:", record);
+                skippedCount++;
+                continue;
+            }
+
+            const billPeriod = billingPeriodString.split(" ");
             const billingMonth = billPeriod[0];
             const billingYear = parseInt(billPeriod[1], 10);
-            const totalConsumption = Number(record["M3 USED"]) || 0;
+            
+            if (!billingMonth || isNaN(billingYear)) {
+                console.warn("Skipping record due to invalid billing period:", record);
+                skippedCount++;
+                continue;
+            }
+
+            const totalConsumption = Number(record["M3 CONSUMED"]) || 0;
             const totalAmountBilledStr = String(record[" TOTAL AMOUNT "] || "0").trim().replace("₱", "").replace(/,/g, "");
             const totalAmountBilled = parseFloat(totalAmountBilledStr) || 0;
 
@@ -263,12 +280,13 @@ export default function SettingsPage() {
             importedCount++;
         } catch (e) {
             console.error("Error importing water mother bill record: ", record, e);
+            skippedCount++;
         }
     }
 
     toast({
       title: "Water Bill Import Complete",
-      description: `${importedCount} water mother bill records imported.`,
+      description: `${importedCount} water mother bill records imported. ${skippedCount} records skipped due to errors or missing data.`,
     });
     setWaterJsonInputString("");
     setIsImportingWaterMotherBills(false);
@@ -322,14 +340,14 @@ export default function SettingsPage() {
               <div>
                  <h3 className="text-lg font-medium mb-1 flex items-center"><Droplet className="h-5 w-5 mr-2 text-primary"/>Import Water Mother Bills from JSON</h3>
                  <p className="text-sm text-muted-foreground mb-3">
-                    Paste your JSON data for water mother bills below. The JSON should be an object where each key is an arbitrary ID and the value is an object with keys:
-                    "BILL FTM OF" (e.g., "January 2023"), "PREVIOUS" (number), "PRESENT" (number), "M3 USED" (number), and " TOTAL AMOUNT " (string or number).
+                    Paste your JSON array below. Each object in the array should have keys:
+                    "BILLING MONTH", "PREVIOUS", "PRESENT", "M3 CONSUMED", and " TOTAL AMOUNT ".
                  </p>
                  <div className="space-y-4 max-w-lg">
                     <Textarea
                       value={waterJsonInputString}
                       onChange={(e) => setWaterJsonInputString(e.target.value)}
-                      placeholder='{\n  "-ID1": { "BILL FTM OF": "January 2023", "PREVIOUS": 100, "PRESENT": 150, "M3 USED": 50, " TOTAL AMOUNT ": "5000.00" }\n}'
+                      placeholder='[\n  {\n    "BILLING MONTH": "January 2024",\n    "PRESENT": "13028",\n    "PREVIOUS": "12824",\n    "M3 CONSUMED": "204",\n    " TOTAL AMOUNT ": " ₱16,805.00 "\n  }\n]'
                       className="mt-1 min-h-[150px] font-mono text-xs"
                       disabled={isImportingWaterMotherBills}
                     />
