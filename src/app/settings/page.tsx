@@ -347,7 +347,7 @@ export default function SettingsPage() {
                     <h4 className="font-medium mb-2">Invoice Signatories</h4>
                     <div className="flex flex-col sm:flex-row gap-2">
                         <Button onClick={() => setIsAddSignatoryModalOpen(true)} className="flex-1">
-                            <UserPlus className="mr-2 h-4 w-4" /> Add Signatory
+                            <UserPlus className="mr-2 h-4 w-4" /> Add 'Prepared by' Signatory
                         </Button>
                         <Button onClick={() => setIsViewSignatoriesModalOpen(true)} variant="outline" className="flex-1">
                             <Eye className="mr-2 h-4 w-4" /> View Signatories
@@ -358,7 +358,7 @@ export default function SettingsPage() {
                     <h4 className="font-medium mb-2">Reading Performers</h4>
                     <div className="flex flex-col sm:flex-row gap-2">
                          <Button onClick={() => setIsAddReadingPerformerModalOpen(true)} className="flex-1">
-                            <UserCog className="mr-2 h-4 w-4" /> Add Performer
+                            <UserCog className="mr-2 h-4 w-4" /> Add Reading Performer
                         </Button>
                         <Button onClick={() => setIsViewReadingPerformersModalOpen(true)} variant="outline" className="flex-1">
                             <Eye className="mr-2 h-4 w-4" /> View Performers

@@ -1,4 +1,3 @@
-
 "use client"; 
 
 import type { ReactNode } from 'react';
@@ -24,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { AppUserRole } from '@/types';
 import { db } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
+import { ModuleProvider } from '@/context/module-context';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -89,6 +89,7 @@ export default function RootLayout({
     localStorage.removeItem('pawUserRole'); 
     localStorage.removeItem('pawUserId'); 
     localStorage.removeItem('pawUserName');
+    localStorage.removeItem('paw-app-module'); // Clear selected module on logout
     setUserRole(null);
     
     toast({
@@ -186,31 +187,32 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider defaultTheme="fire-dark" storageKey="paw-app-theme">
-          <SidebarProvider defaultOpen={true}>
-            <div className="flex min-h-screen w-full">
-              <Sidebar collapsible="icon" className="border-r">
-                <SidebarHeader className="flex items-center justify-center p-4 h-16 border-b">
-                  <AppLogo />
-                </SidebarHeader>
-                <SidebarContent className="flex-1 p-2">
-                  <MainNavigation userRole={userRole} />
-                </SidebarContent>
-                <SidebarFooter className="p-2 border-t">
-                  <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => handleLogout()}>
-                    <LogOut className="h-5 w-5" />
-                    <span>Logout</span>
-                  </Button>
-                </SidebarFooter>
-              </Sidebar>
-              <SidebarInset className="flex-1 flex flex-col overflow-y-auto">
-                {children}
-              </SidebarInset>
-            </div>
-            <Toaster />
-          </SidebarProvider>
+          <ModuleProvider>
+            <SidebarProvider defaultOpen={true}>
+              <div className="flex min-h-screen w-full">
+                <Sidebar collapsible="icon" className="border-r">
+                  <SidebarHeader className="flex items-center justify-center p-4 h-16 border-b">
+                    <AppLogo />
+                  </SidebarHeader>
+                  <SidebarContent className="flex-1 p-2">
+                    <MainNavigation userRole={userRole} />
+                  </SidebarContent>
+                  <SidebarFooter className="p-2 border-t">
+                    <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => handleLogout()}>
+                      <LogOut className="h-5 w-5" />
+                      <span>Logout</span>
+                    </Button>
+                  </SidebarFooter>
+                </Sidebar>
+                <SidebarInset className="flex-1 flex flex-col overflow-y-auto">
+                  {children}
+                </SidebarInset>
+              </div>
+              <Toaster />
+            </SidebarProvider>
+          </ModuleProvider>
         </ThemeProvider>
       </body>
     </html>
   );
 }
-    

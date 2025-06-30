@@ -1,56 +1,48 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { PageHeader } from "@/components/page-header";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { AppUserRole } from "@/types";
-import { APP_USER_ROLE_LABELS } from "@/types";
+import { Card, CardContent } from "@/components/ui/card";
+import { Zap, Droplet } from "lucide-react";
+import { useModule } from '@/context/module-context';
+import type { Module } from '@/context/module-context';
 
 export default function DashboardPage() {
-  const [userInfo, setUserInfo] = useState<{ name: string; role: string }>({ name: '', role: '' });
-  const [isLoading, setIsLoading] = useState(true);
+  const { setSelectedModule } = useModule();
+  const router = useRouter();
 
-  useEffect(() => {
-    const storedName = localStorage.getItem('pawUserName');
-    const storedRole = localStorage.getItem('pawUserRole') as AppUserRole | null;
-    
-    const roleLabel = storedRole ? APP_USER_ROLE_LABELS[storedRole] : 'User';
-
-    setUserInfo({
-      name: storedName || 'User',
-      role: roleLabel,
-    });
-    setIsLoading(false);
-  }, []);
+  const handleSelectModule = (module: Module) => {
+    setSelectedModule(module);
+    if (module === 'power') {
+      router.push('/power');
+    } else {
+      router.push('/water');
+    }
+  };
 
   return (
     <main className="flex flex-1 flex-col">
-      <PageHeader title="Dashboard" />
-      <div className="flex-1 space-y-6 p-4 md:p-6">
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-2xl md:text-3xl">
-              {isLoading ? (
-                <Skeleton className="h-8 w-64" />
-              ) : (
-                `Welcome ${userInfo.role}: ${userInfo.name}`
-              )}
-            </CardTitle>
-          </CardHeader>
+      <PageHeader title="Select a Module" />
+      <div className="flex flex-1 flex-col items-center justify-center space-y-4 p-4 md:flex-row md:space-y-0 md:space-x-8">
+        <Card
+          className="w-64 h-64 transform cursor-pointer transition-transform duration-300 hover:scale-105 hover:shadow-2xl"
+          onClick={() => handleSelectModule('power')}
+        >
+          <CardContent className="flex flex-col items-center justify-center h-full p-6">
+            <Zap className="h-24 w-24 text-primary mb-4" />
+            <span className="text-2xl font-bold tracking-wider">POWER</span>
+          </CardContent>
+        </Card>
+        <Card
+          className="w-64 h-64 transform cursor-pointer transition-transform duration-300 hover:scale-105 hover:shadow-2xl"
+          onClick={() => handleSelectModule('water')}
+        >
+          <CardContent className="flex flex-col items-center justify-center h-full p-6">
+            <Droplet className="h-24 w-24 text-primary mb-4" />
+            <span className="text-2xl font-bold tracking-wider">WATER</span>
+          </CardContent>
         </Card>
       </div>
-      <footer className="p-4 text-center text-sm text-muted-foreground">
-        <a
-          href="https://www.facebook.com/parakapeako"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-primary transition-colors"
-        >
-          System Developer
-        </a>
-      </footer>
     </main>
   );
 }
