@@ -86,6 +86,40 @@ export interface PowerReadingDocument extends Omit<PowerReadingEntry, 'id' | 'da
   notes?: string;
 }
 
+// Type for the WATER reading entries to be saved in Firestore
+export interface WaterReadingEntry {
+  id?: string; // Firestore will generate this
+  clientId: string;
+  clientName: string; // Denormalized for easier display
+  stallNo: string; // Denormalized
+  waterMeterNo: string; // Denormalized
+  dateBilled: FieldValue | Timestamp;
+  billingMonth: string;
+  billingYear: number;
+  previousReading: number;
+  presentReading: number;
+  totalM3: number; // For Water cubic meters
+  notes?: string;
+  createdAt: FieldValue | Timestamp;
+}
+
+export interface WaterReadingDocument extends Omit<WaterReadingEntry, 'id' | 'dateBilled' | 'createdAt'> {
+  id: string;
+  dateBilled: Date;
+  createdAt?: Date;
+  clientId: string;
+  clientName: string;
+  stallNo: string;
+  waterMeterNo: string;
+  billingMonth: string;
+  billingYear: number;
+  previousReading: number;
+  presentReading: number;
+  totalM3: number;
+  notes?: string;
+}
+
+
 export type UtilityType = 'power' | 'water';
 
 export interface MotherBillEntry {
@@ -246,7 +280,7 @@ export interface MonthlyStatisticsData {
   motherBillTotalAmountBilled: number;
 }
 
-// Reading Forms - Monthly Client Summary / Electric Meter Reading Form
+// Reading Forms - POWER
 export interface ClientMonthlyConsumption {
   clientId: string;
   clientName: string;
@@ -264,6 +298,27 @@ export interface MonthlyClientSummaryData { // Reused for the "Electric Meter Re
   overallTotalKwh: number;
   motherBillRate: number | null;
 }
+
+
+// Reading Forms - WATER
+export interface ClientMonthlyConsumptionWater {
+  clientId: string;
+  clientName: string;
+  stallNo: string;
+  waterMeterNo: string;
+  previousReading: number | null;
+  presentReading: number | null;
+  totalM3: number | null;
+}
+
+export interface MonthlyClientSummaryDataWater {
+  month: string;
+  year: number;
+  clientConsumptions: ClientMonthlyConsumptionWater[];
+  overallTotalM3: number;
+  motherBillRate: number | null;
+}
+
 
 // Invoice Records for Tracking
 export type InvoiceStatus = 'unpaid' | 'paid';

@@ -36,7 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { doc, updateDoc, Timestamp } from "firebase/firestore";
 import type { MotherBillDocument } from "@/types";
-import { Loader2, Save, Zap } from "lucide-react";
+import { Loader2, Save, Zap, Droplet } from "lucide-react";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -62,11 +62,8 @@ interface EditMotherBillModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   bill: MotherBillDocument | null;
-  utilityType: 'power'; // Explicitly for power
+  utilityType: 'power' | 'water';
 }
-
-const CONSUMPTION_UNIT = 'kWh';
-const UTILITY_ICON = <Zap className="h-5 w-5 mr-2 text-primary" />;
 
 export function EditMotherBillModal({ isOpen, onOpenChange, bill, utilityType }: EditMotherBillModalProps) {
   const { toast } = useToast();
@@ -84,21 +81,24 @@ export function EditMotherBillModal({ isOpen, onOpenChange, bill, utilityType }:
       notes: "",
     },
   });
-
-  const { reset, watch } = form;
   
-  // For power, totalConsumption is editable, so we don't auto-calculate it from past/present
-  // const pastReadingValue = watch("pastReading");
-  // const presentReadingValue = watch("presentReading");
-  // const totalConsumptionDisplay = useMemo(() => {
-  //   const past = Number(pastReadingValue);
-  //   const present = Number(presentReadingValue);
-  //   if (!isNaN(past) && !isNaN(present) && present >= past) {
-  //     return present - past;
-  //   }
-  //   return 0;
-  // }, [pastReadingValue, presentReadingValue]);
-
+  const { reset, watch, setValue } = form;
+  
+  const pastReadingValue = watch("pastReading");
+  const presentReadingValue = watch("presentReading");
+  
+  // Conditionally calculate total consumption for water
+  useEffect(() => {
+    if (utilityType === 'water') {
+      const past = Number(pastReadingValue);
+      const present = Number(presentReadingValue);
+      if (!isNaN(past) && !isNaN(present) && present >= past) {
+        setValue("totalConsumption", present - past, { shouldValidate: true });
+      } else {
+        setValue("totalConsumption", 0);
+      }
+    }
+  }, [pastReadingValue, presentReadingValue, utilityType, setValue]);
 
   useEffect(() => {
     if (bill && isOpen) {
@@ -107,12 +107,29 @@ export function EditMotherBillModal({ isOpen, onOpenChange, bill, utilityType }:
         billingYear: bill.billingYear,
         pastReading: bill.pastReading,
         presentReading: bill.presentReading,
-        totalConsumption: bill.totalConsumption, // Use stored totalConsumption for power
+        totalConsumption: bill.totalConsumption,
         totalAmountBilled: bill.totalAmountBilled,
         notes: bill.notes || "",
       });
     }
   }, [bill, isOpen, reset]);
+  
+  const utilityConfig = useMemo(() => {
+    if (utilityType === 'power') {
+      return {
+        unit: 'kWh',
+        icon: <Zap className="h-5 w-5 mr-2 text-primary" />,
+        title: 'Edit Power Mother Bill',
+        description: 'Modify the details for the power mother bill.',
+      };
+    }
+    return {
+      unit: 'm³',
+      icon: <Droplet className="h-5 w-5 mr-2 text-primary" />,
+      title: 'Edit Water Mother Bill',
+      description: 'Modify the details for the water mother bill.',
+    };
+  }, [utilityType]);
 
   async function onSubmit(data: EditMotherBillFormData) {
     if (!bill || !bill.id) {
@@ -123,22 +140,21 @@ export function EditMotherBillModal({ isOpen, onOpenChange, bill, utilityType }:
     try {
       const billRef = doc(db, "mother-bills", bill.id);
       const updatedBillData = {
-        utilityType: bill.utilityType, // Keep original utility type
+        utilityType: bill.utilityType,
         billingMonth: data.billingMonth,
         billingYear: data.billingYear,
         pastReading: data.pastReading,
         presentReading: data.presentReading,
-        totalConsumption: data.totalConsumption, // Save the edited total consumption
+        totalConsumption: data.totalConsumption,
         totalAmountBilled: data.totalAmountBilled,
         notes: data.notes || "",
-        // createdAt will be preserved by not including it in the updateDoc payload unless it needs to be serverTimestamp()
       };
 
       await updateDoc(billRef, updatedBillData);
       
       toast({
         title: "Mother Bill Updated",
-        description: `Power mother bill for ${data.billingMonth} ${data.billingYear} has been updated.`,
+        description: `${utilityType.charAt(0).toUpperCase() + utilityType.slice(1)} mother bill for ${data.billingMonth} ${data.billingYear} has been updated.`,
       });
       onOpenChange(false);
     } catch (error) {
@@ -160,10 +176,10 @@ export function EditMotherBillModal({ isOpen, onOpenChange, bill, utilityType }:
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center">
-            {UTILITY_ICON} Edit Power Mother Bill
+            {utilityConfig.icon} {utilityConfig.title}
           </DialogTitle>
           <DialogDescription>
-            Modify the details for the power mother bill.
+            {utilityConfig.description}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -211,7 +227,7 @@ export function EditMotherBillModal({ isOpen, onOpenChange, bill, utilityType }:
                     name="pastReading"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Past Reading ({CONSUMPTION_UNIT})</FormLabel>
+                        <FormLabel>Past Reading ({utilityConfig.unit})</FormLabel>
                         <FormControl>
                           <Input type="number" placeholder="e.g., 15000" {...field} />
                         </FormControl>
@@ -224,7 +240,7 @@ export function EditMotherBillModal({ isOpen, onOpenChange, bill, utilityType }:
                     name="presentReading"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Present Reading ({CONSUMPTION_UNIT})</FormLabel>
+                        <FormLabel>Present Reading ({utilityConfig.unit})</FormLabel>
                         <FormControl>
                           <Input type="number" placeholder="e.g., 16500" {...field} />
                         </FormControl>
@@ -237,9 +253,9 @@ export function EditMotherBillModal({ isOpen, onOpenChange, bill, utilityType }:
                     name="totalConsumption"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Total Consumption ({CONSUMPTION_UNIT})</FormLabel>
+                        <FormLabel>Total Consumption ({utilityConfig.unit})</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="e.g., 1500" {...field} />
+                          <Input type="number" placeholder="e.g., 1500" {...field} readOnly={utilityType === 'water'} className={utilityType === 'water' ? 'bg-muted/80' : ''}/>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -290,4 +306,3 @@ export function EditMotherBillModal({ isOpen, onOpenChange, bill, utilityType }:
     </Dialog>
   );
 }
-

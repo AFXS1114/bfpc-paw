@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -34,7 +35,9 @@ const powerNavItems: NavItem[] = [
 
 const waterNavItems: NavItem[] = [
   { href: "/mother-bill-water", label: "Mother Bill (Water)", icon: ReceiptText }, 
-  { href: "/water", label: "Water Entry", icon: Droplet }, 
+  { href: "/water", label: "Water Entry", icon: Droplet },
+  { href: "/water-readings", label: "Water Readings", icon: ListTree },
+  { href: "/water-readings/reading-forms", label: "Reading Forms", icon: ClipboardList },
 ];
 
 const sharedFinancialNavItems: NavItem[] = [
@@ -76,6 +79,9 @@ export function MainNavigation({ userRole: initialUserRole }: { userRole: AppUse
         
         // Special case to prevent parent from being active if child is active
         if (item.href === "/power-readings" && pathname !== "/power-readings") {
+             isActive = false;
+        }
+        if (item.href === "/water-readings" && pathname !== "/water-readings") {
              isActive = false;
         }
 
