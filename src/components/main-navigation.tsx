@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { 
   Settings, Droplet, Zap, Users, ListTree, 
   ReceiptText, FileText as InvoiceIcon, DatabaseZap, ClipboardList, 
-  Layers, PieChart, Archive, ArrowLeftCircle 
+  Layers, PieChart, Archive, ArrowLeftCircle, Tags
 } from "lucide-react";
 import { 
   SidebarMenu, 
@@ -31,6 +31,7 @@ const powerNavItems: NavItem[] = [
   { href: "/power", label: "Power Entry", icon: Zap },
   { href: "/power-readings", label: "Power Readings", icon: ListTree },
   { href: "/power-readings/reading-forms", label: "Reading Forms", icon: ClipboardList },
+  { href: "/monthly-rates", label: "Monthly Rates", icon: Tags },
   { href: "/invoicing", label: "Create Invoice", icon: InvoiceIcon },
   { href: "/batch-invoice-power", label: "Batch Invoice", icon: Layers },
 ];
@@ -93,6 +94,9 @@ export function MainNavigation({ userRole: initialUserRole }: { userRole: AppUse
         const specificReadingPaths = ["/power-readings/reading-forms", "/water-readings/reading-forms"];
         if ((item.href === "/power-readings" || item.href === "/water-readings") && specificReadingPaths.includes(pathname)) {
              isActive = false;
+        }
+        if (item.href === "/power-readings" && pathname.startsWith("/monthly-rates")) {
+          isActive = false;
         }
 
 
