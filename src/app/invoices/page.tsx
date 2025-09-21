@@ -152,7 +152,7 @@ export default function InvoicesPage() {
                         <p><strong>Client:</strong> {invoice.clientName} ({invoice.stallNo})</p>
                         <p><strong>Invoice Date (on PDF):</strong> {invoice.displayInvoiceDate}</p>
                         <p><strong>Billing Details:</strong> {invoice.billingPeriodDescription}</p>
-                        <p><strong>Type:</strong> <Badge variant="outline">{invoice.invoiceType === 'single' ? 'Single Invoice' : 'Batch Invoice'}</Badge></p>
+                        <div><strong>Type:</strong> <Badge variant="outline">{invoice.invoiceType === 'single' ? 'Single Invoice' : 'Batch Invoice'}</Badge></div>
                         <p className="flex items-center">
                           <DollarSign className="h-4 w-4 mr-1 text-green-600"/>
                           <strong>Total Amount Due:</strong> 
