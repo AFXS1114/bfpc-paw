@@ -96,7 +96,9 @@ export default function InvoicesPage() {
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter(invoice => {
-      const utilityMatch = utilityTypeFilter === 'all' || invoice.utilityType === utilityTypeFilter;
+      const utilityMatch = utilityTypeFilter === 'all' || 
+                           (invoice.utilityType && invoice.utilityType === utilityTypeFilter) ||
+                           (invoice.billingPeriodDescription && invoice.billingPeriodDescription.toLowerCase().includes(utilityTypeFilter));
       const clientMatch = clientFilter === 'all' || invoice.clientId === clientFilter;
       const amountMatch = amountSearch === '' || invoice.totalAmountDue.toString().includes(amountSearch);
       return utilityMatch && clientMatch && amountMatch;
