@@ -242,9 +242,11 @@ export default function InvoicesPage() {
                            <span className="text-muted-foreground truncate max-w-[150px] md:max-w-[250px] hidden sm:inline" title={invoice.clientName}>{invoice.clientName} ({invoice.stallNo})</span>
                         </div>
                         <div className="flex items-center gap-3">
+                          {invoice.utilityType && (
                            <Badge variant={invoice.utilityType === 'power' ? 'default' : 'secondary'} className={invoice.utilityType === 'power' ? '' : 'bg-blue-600 hover:bg-blue-700 text-white'}>
                             {invoice.utilityType.charAt(0).toUpperCase() + invoice.utilityType.slice(1)}
                            </Badge>
+                          )}
                           <span className="text-muted-foreground hidden md:inline">{format(invoice.invoiceDate, "MMM dd, yyyy")}</span>
                           <Badge variant={invoice.status === 'paid' ? 'default' : 'secondary'} className={invoice.status === 'paid' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}>
                             {invoice.status === 'paid' ? <CheckCircle className="mr-1 h-3.5 w-3.5"/> : <Clock className="mr-1 h-3.5 w-3.5"/>}
@@ -258,7 +260,7 @@ export default function InvoicesPage() {
                         <p><strong>Client:</strong> {invoice.clientName} ({invoice.stallNo})</p>
                         <p><strong>Invoice Date (on PDF):</strong> {invoice.displayInvoiceDate}</p>
                         <p><strong>Billing Details:</strong> {invoice.billingPeriodDescription}</p>
-                        <div><strong>Type:</strong> <Badge variant="outline">{invoice.invoiceType === 'single' ? 'Single Invoice' : 'Batch Invoice'}</Badge></div>
+                        <div><Badge variant="outline">{invoice.invoiceType === 'single' ? 'Single Invoice' : 'Batch Invoice'}</Badge></div>
                         <p className="flex items-center">
                           <DollarSign className="h-4 w-4 mr-1 text-green-600"/>
                           <strong>Total Amount Due:</strong> 
