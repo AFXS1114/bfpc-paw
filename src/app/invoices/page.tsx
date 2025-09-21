@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,21 +17,38 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import type { InvoiceRecordDocument } from "@/types";
+import type { InvoiceRecordDocument, ClientDocument, UtilityType } from "@/types";
 import { MarkAsPaidModal } from "@/components/mark-as-paid-modal";
 import { format } from "date-fns";
-import { Archive, CheckCircle, Clock, FileText, DollarSign, Download, Loader2 } from "lucide-react";
+import { Archive, CheckCircle, Clock, FileText, DollarSign, Download, Loader2, ListFilter, XCircle } from "lucide-react";
 import { generatePdf } from "@/lib/invoice-helpers";
 
 export default function InvoicesPage() {
   const { toast } = useToast();
   const [invoices, setInvoices] = useState<InvoiceRecordDocument[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
+  const [clients, setClients] = useState<ClientDocument[]>([]);
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
+
+  // Filter states
+  const [utilityTypeFilter, setUtilityTypeFilter] = useState<"all" | UtilityType>("all");
+  const [clientFilter, setClientFilter] = useState<string>("all");
+  const [amountSearch, setAmountSearch] = useState<string>("");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecordDocument | null>(null);
   const [isRedownloadingId, setIsRedownloadingId] = useState<string | null>(null);
@@ -62,6 +79,36 @@ export default function InvoicesPage() {
     return () => unsubscribe();
   }, [toast]);
 
+  useEffect(() => {
+    setIsLoadingClients(true);
+    const clientsQuery = query(collection(db, "clients"), orderBy("clientName", "asc"));
+    const unsubscribeClients = onSnapshot(clientsQuery, (querySnapshot) => {
+      const clientsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClientDocument));
+      setClients(clientsData);
+      setIsLoadingClients(false);
+    }, (error) => {
+      console.error("Error fetching clients: ", error);
+      toast({ title: "Error", description: "Failed to fetch clients for filter.", variant: "destructive" });
+      setIsLoadingClients(false);
+    });
+    return () => unsubscribeClients();
+  }, [toast]);
+
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter(invoice => {
+      const utilityMatch = utilityTypeFilter === 'all' || invoice.utilityType === utilityTypeFilter;
+      const clientMatch = clientFilter === 'all' || invoice.clientId === clientFilter;
+      const amountMatch = amountSearch === '' || invoice.totalAmountDue.toString().includes(amountSearch);
+      return utilityMatch && clientMatch && amountMatch;
+    });
+  }, [invoices, utilityTypeFilter, clientFilter, amountSearch]);
+
+  const clearFilters = () => {
+    setUtilityTypeFilter("all");
+    setClientFilter("all");
+    setAmountSearch("");
+  };
+
   const handleMarkAsPaidClick = (invoice: InvoiceRecordDocument) => {
     setSelectedInvoice(invoice);
     setIsModalOpen(true);
@@ -75,10 +122,9 @@ export default function InvoicesPage() {
         officialReceiptNumber: orNumber,
         paidAt: serverTimestamp(),
       });
-      // No need to manually refetch, onSnapshot will update the list
     } catch (error) {
       console.error("Error updating invoice status: ", error);
-      throw error; // Re-throw to be caught by modal's error handler
+      throw error;
     }
   };
 
@@ -99,15 +145,72 @@ export default function InvoicesPage() {
     }
   };
 
-
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
+
+  const hasActiveFilters = utilityTypeFilter !== 'all' || clientFilter !== 'all' || amountSearch !== '';
 
   return (
     <main className="flex flex-1 flex-col">
       <PageHeader title="Invoice Records" />
       <div className="flex-1 space-y-6 p-4 md:p-6">
+
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ListFilter className="h-6 w-6 text-primary"/>Filter Invoices</CardTitle>
+                <CardDescription>Refine the list of invoices using the filters below.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <Label htmlFor="filter-utility">Utility Type</Label>
+                        <Select value={utilityTypeFilter} onValueChange={(value) => setUtilityTypeFilter(value as any)}>
+                            <SelectTrigger id="filter-utility" className="mt-1">
+                                <SelectValue placeholder="All Utilities" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Utilities</SelectItem>
+                                <SelectItem value="power">Power</SelectItem>
+                                <SelectItem value="water">Water</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="filter-client">Client Name</Label>
+                        <Select value={clientFilter} onValueChange={setClientFilter} disabled={isLoadingClients}>
+                            <SelectTrigger id="filter-client" className="mt-1">
+                                <SelectValue placeholder={isLoadingClients ? "Loading..." : "All Clients"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Clients</SelectItem>
+                                {clients.map(client => (
+                                    <SelectItem key={client.id} value={client.id}>{client.clientName} ({client.stallNo})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="search-amount">Search Amount Due</Label>
+                        <Input 
+                            id="search-amount"
+                            type="text"
+                            placeholder="e.g., 1234.56"
+                            value={amountSearch}
+                            onChange={(e) => setAmountSearch(e.target.value.replace(/[^0-9.]/g, ''))}
+                            className="mt-1"
+                        />
+                    </div>
+                </div>
+                 {hasActiveFilters && (
+                    <Button variant="outline" onClick={clearFilters}>
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Clear Filters
+                    </Button>
+                )}
+            </CardContent>
+        </Card>
+
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -125,11 +228,11 @@ export default function InvoicesPage() {
                 <Skeleton className="h-12 w-full" />
                 <Skeleton className="h-12 w-full" />
               </div>
-            ) : invoices.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No invoices found.</p>
+            ) : filteredInvoices.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No invoices found matching your criteria.</p>
             ) : (
               <Accordion type="single" collapsible className="w-full">
-                {invoices.map((invoice) => (
+                {filteredInvoices.map((invoice) => (
                   <AccordionItem value={invoice.id} key={invoice.id}>
                     <AccordionTrigger className="hover:bg-muted/50 px-4 py-3 rounded-md">
                       <div className="flex flex-1 items-center justify-between text-sm">
@@ -139,6 +242,9 @@ export default function InvoicesPage() {
                            <span className="text-muted-foreground truncate max-w-[150px] md:max-w-[250px] hidden sm:inline" title={invoice.clientName}>{invoice.clientName} ({invoice.stallNo})</span>
                         </div>
                         <div className="flex items-center gap-3">
+                           <Badge variant={invoice.utilityType === 'power' ? 'default' : 'secondary'} className={invoice.utilityType === 'power' ? '' : 'bg-blue-600 hover:bg-blue-700 text-white'}>
+                            {invoice.utilityType.charAt(0).toUpperCase() + invoice.utilityType.slice(1)}
+                           </Badge>
                           <span className="text-muted-foreground hidden md:inline">{format(invoice.invoiceDate, "MMM dd, yyyy")}</span>
                           <Badge variant={invoice.status === 'paid' ? 'default' : 'secondary'} className={invoice.status === 'paid' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}>
                             {invoice.status === 'paid' ? <CheckCircle className="mr-1 h-3.5 w-3.5"/> : <Clock className="mr-1 h-3.5 w-3.5"/>}
