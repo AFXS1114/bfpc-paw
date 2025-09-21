@@ -330,6 +330,7 @@ export interface InvoiceRecordEntry {
   id?: string; // Firestore will generate this
   invoiceNumber: string;
   invoiceType: InvoiceType;
+  utilityType: UtilityType;
   clientId: string;
   clientName: string;
   stallNo: string;
@@ -338,6 +339,7 @@ export interface InvoiceRecordEntry {
   billingPeriodDescription: string; // e.g., "Power - July 2024" or "Consolidated Power - All Periods"
   totalAmountDue: number;
   status: InvoiceStatus;
+  regenerationData: InvoiceData; // Complete data snapshot for redownloading
   officialReceiptNumber?: string;
   paidAt?: FieldValue | Timestamp;
   createdAt: FieldValue | Timestamp; // When the record was created in Firestore
@@ -347,6 +349,7 @@ export interface InvoiceRecordDocument extends Omit<InvoiceRecordEntry, 'id' | '
   id: string;
   invoiceNumber: string;
   invoiceType: InvoiceType;
+  utilityType: UtilityType;
   clientId: string;
   clientName: string;
   stallNo: string;
@@ -355,6 +358,7 @@ export interface InvoiceRecordDocument extends Omit<InvoiceRecordEntry, 'id' | '
   billingPeriodDescription: string; 
   totalAmountDue: number;
   status: InvoiceStatus;
+  regenerationData: InvoiceData;
   officialReceiptNumber?: string;
   paidAt?: Date;
   createdAt: Date;

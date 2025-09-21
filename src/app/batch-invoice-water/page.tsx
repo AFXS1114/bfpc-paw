@@ -36,22 +36,7 @@ import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestam
 import type { ClientDocument, WaterReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument, InvoiceRecordEntry } from "@/types";
 import { Search, Loader2, Download, Layers } from "lucide-react";
 import { format, isValid } from "date-fns";
-
-import pdfMake from "pdfmake/build/pdfmake";
-import pdfFonts from "pdfmake/build/vfs_fonts";
-
-if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
-} else if (pdfFonts && (pdfFonts as any).default && (pdfFonts as any).default.pdfMake && (pdfFonts as any).default.pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFonts as any).default.pdfMake.vfs;
-} else if (pdfFonts && typeof pdfFonts === 'object' && Object.keys(pdfFonts).length > 0 && !(pdfFonts as any).pdfMake) {
-    (pdfMake as any).vfs = pdfFonts;
-    if (!((pdfMake as any).vfs && Object.keys((pdfMake as any).vfs).length > 0)) {
-        (pdfMake as any).vfs = undefined; 
-    }
-} else {
-  console.error("Failed to load pdfMake VFS fonts on Batch Invoice page. Structure of 'pdfFonts':", JSON.stringify(pdfFonts, null, 2));
-}
+import { generatePdf } from '@/lib/invoice-helpers';
 
 
 const MONTHS_ARRAY = [ 
@@ -169,173 +154,12 @@ export default function BatchInvoiceWaterPage() {
 
   const isAllSelected = waterReadings.length > 0 && selectedReadingIds.size === waterReadings.length;
 
-  async function imageToDataUrl(src: string): Promise<string | null> {
-    try {
-      const response = await fetch(src);
-      if (!response.ok) {
-        console.error(`Failed to fetch image: ${response.status} ${response.statusText} for src: ${src}`);
-        return null;
-      }
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = (error) => {
-          console.error("FileReader error:", error);
-          reject(error);
-        };
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error("Error converting image to data URL:", error);
-      return null;
-    }
-  }
-  
-  const generateConsolidatedInvoiceContent = (invoiceData: InvoiceData, companyLogoDataUrl: string | null) => {
-    const formatCurrency = (amount: number) => `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    
-    const companyHeader: any[] = [];
-    if (companyLogoDataUrl) {
-        companyHeader.push({ image: companyLogoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const });
-    }
-    companyHeader.push(
-        { text: invoiceData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
-        { text: invoiceData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const}
-    );
-    if (invoiceData.companyAddressLine2) {
-        companyHeader.push({ text: invoiceData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const });
-    }
-
-    const tableBody: any[] = [
-      [ // Headers
-        { text: 'Billing Period', style: 'tableHeader' },
-        { text: 'Cons.\n(m³)', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Rate\n(P/m³)', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Amount\n(P)', style: 'tableHeader', alignment: 'right' as const },
-      ]
-    ];
-
-    invoiceData.lineItems?.forEach(item => {
-      tableBody.push([
-        item.description,
-        { text: item.consumption.toLocaleString(), alignment: 'right' as const },
-        { text: `P${item.rate.toFixed(4)}`, alignment: 'right' as const },
-        { text: formatCurrency(item.amount), alignment: 'right' as const },
-      ]);
-    });
-
-
-    return [
-      {
-        columns: [
-          companyHeader,
-          [
-            { text: `INVOICE`, style: 'invoiceTitle', alignment: 'right' as const },
-            { text: `Invoice #: ${invoiceData.invoiceNumber}`, alignment: 'right' as const, style: 'small' },
-            { text: `Date: ${invoiceData.invoiceDate}`, alignment: 'right' as const, style: 'small' },
-          ]
-        ],
-        columnGap: 10,
-        margin: [0,0,0,10]
-      },
-      { canvas: [{ type: 'line' as const, x1: 0, y1: 3, x2: 515, y2: 3, lineWidth: 0.5, lineColor: '#cccccc' }], margin: [0, 3, 0, 5] as const },
-      {
-        columns: [
-          [
-            { text: 'Bill To:', style: 'subheader' },
-            { text: invoiceData.clientName, style: 'defaultCompact' },
-            { text: `Stall No: ${invoiceData.stallNo}`, style: 'defaultCompact' },
-          ],
-          [
-            { text: 'Billing For:', style: 'subheader', alignment: 'right' as const },
-            { text: (invoiceData.billingMonth === "Various" ? "All Recorded Periods" : `${invoiceData.billingMonth} ${invoiceData.billingYear}`), alignment: 'right' as const, style: 'defaultCompact' },
-          ]
-        ],
-        columnGap: 10,
-        margin: [0, 0, 0, 5] as const,
-      },
-      {
-        style: 'itemsTable',
-        table: {
-          widths: ['*', 50, 60, 65], // Description, Cons, Rate, Amount
-          body: tableBody
-        },
-        layout: {
-           hLineWidth: function (i: number, node: any) { return (i === 0 || i === node.table.body.length) ? 0.5 : 0.5; },
-           vLineWidth: function (i: number, node: any) { return 0.5; },
-           hLineColor: function (i: number, node: any) { return '#BFBFBF'; },
-           vLineColor: function (i: number, node: any) { return '#BFBFBF'; },
-           paddingLeft: function(i: number, node: any) { return 3; },
-           paddingRight: function(i: number, node: any) { return 3; },
-           paddingTop: function(i: number, node: any) { return 1; },
-           paddingBottom: function(i: number, node: any) { return 1; }
-        }
-      },
-      {
-          margin: [0, 2, 0, 2] as const,
-          table: { widths: ['*'], body: [[]]},
-          layout: 'noBorders'
-      },
-      {
-        columns: [
-          { width: '*', text: '' }, 
-          {
-            width: 'auto',
-            style: 'summaryTable',
-            table: {
-              widths: ['auto', 'auto'],
-              body: [
-                ['Subtotal:', { text: formatCurrency(invoiceData.amountBeforeVAT), alignment: 'right' as const }],
-                ['VAT (12%):', { text: formatCurrency(invoiceData.vatAmount), alignment: 'right' as const }],
-                [{ text: 'Total Amount Due:', bold: true, style:'totalAmountKey' }, { text: formatCurrency(invoiceData.totalAmountDue), alignment: 'right' as const, bold: true, style:'totalAmountValue' }]
-              ]
-            },
-            layout: 'noBorders'
-          }
-        ],
-        margin: [0, 2, 0, 5] as const
-      },
-      { text: '', margin: [0,0,0,5] as const}, 
-      invoiceData.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 2, 0, 1] as const } : {text:''}, 
-      invoiceData.paymentInstructions ? { text: invoiceData.paymentInstructions, style: 'defaultCompact', margin: [0, 0, 0, 5] as const } : {text:''}, 
-      {
-          columns: [
-              (invoiceData.readingPerformerName || invoiceData.readingPerformerPosition) ? [
-                  { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 15] as const }, 
-                  { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
-                  { text: invoiceData.readingPerformerName || '', style: 'defaultCompact', bold: true },
-                  { text: invoiceData.readingPerformerPosition || '', style: 'small' },
-              ] : {text: ''},
-              (invoiceData.signatoryName || invoiceData.signatoryPosition) ? [
-                  { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 15] as const },
-                  { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
-                  { text: invoiceData.signatoryName || '', style: 'defaultCompact', bold: true },
-                  { text: invoiceData.signatoryPosition || '', style: 'small' },
-              ] : {text: ''},
-              (invoiceData.verifierName || invoiceData.verifierDesignation) ? [
-                  { text: 'Checked and Verified by:', style: 'small', margin: [0, 0, 0, 15] as const },
-                  { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
-                  { text: invoiceData.verifierName || '', style: 'defaultCompact', bold: true },
-                  { text: invoiceData.verifierDesignation || '', style: 'small' },
-              ] : {text: ''}
-          ],
-          columnGap: 10,
-          margin: [0, 10, 0, 0] as const,
-      },
-      { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 20, 0, 0] as const }
-    ];
-  };
-
   const handleGenerateBatchPdf = async () => {
     if (selectedReadingIds.size === 0) {
       toast({ title: "No Readings Selected", description: "Please select at least one reading to generate an invoice.", variant: "destructive" });
       return;
     }
-    if (!(pdfMake as any).vfs) {
-      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF. Check console/reload.", variant: "destructive" });
-      return;
-    }
+    
     setIsGeneratingPdf(true);
 
     const client = clients.find(c => c.id === selectedClientId);
@@ -345,7 +169,6 @@ export default function BatchInvoiceWaterPage() {
       return;
     }
 
-    const companyLogoDataUrl = await imageToDataUrl('/company-logo.png');
     const lineItems: InvoiceData['lineItems'] = [];
     let overallAmountBeforeVAT = 0;
     let hasErrors = false;
@@ -455,6 +278,7 @@ export default function BatchInvoiceWaterPage() {
         stallNo: client.stallNo,
         billingMonth: "Various", 
         billingYear: 0,
+        consumptionUnit: 'm³',
         lineItems: lineItems,
         amountBeforeVAT: overallAmountBeforeVAT,
         vatAmount: overallVatAmount,
@@ -473,37 +297,13 @@ export default function BatchInvoiceWaterPage() {
         verifierDesignation: verifierDetails?.designation,
     };
     
-    const documentDefinition: any = {
-      content: generateConsolidatedInvoiceContent(consolidatedInvoiceData, companyLogoDataUrl),
-      defaultStyle: { fontSize: 7.5, lineHeight: 1.0, font: "Roboto" },
-      styles: {
-        header: { fontSize: 10, bold: true, margin: [0, 0, 0, 1], color: '#333333' }, 
-        address: { fontSize: 6.5, margin: [0,0,0,1], color: '#4A4A4A'},
-        invoiceTitle: { fontSize: 14, bold: true, color: '#1E40AF', margin: [0, 0, 0, 1] }, 
-        subheader: { fontSize: 7.5, bold: true, margin: [0, 1, 0, 1], color: '#333333' }, 
-        itemsTable: { margin: [0, 2, 0, 2], fontSize: 6.5 }, 
-        tableHeader: { bold: true, fontSize: 6.5, color: '#1F2937'}, 
-        summaryTable: { margin: [0,0,0,2], fontSize: 7}, 
-        totalAmountKey: {fontSize: 7.5, bold:true, color: '#1E40AF'}, 
-        totalAmountValue: {fontSize: 7.5, bold:true, color: '#1E40AF'}, 
-        smallHeader: { fontSize: 6, color: '#4A4A4A'}, 
-        small: { fontSize: 6, color: '#4A4A4A'}, 
-        defaultCompact: {fontSize: 7, color: '#333333'}, 
-      },
-      pageSize: 'A4',
-      pageOrientation: 'portrait',
-      pageMargins: [25, 25, 25, 25],
-      footer: function(currentPage: number, pageCount: number) { 
-        return { text: `Page ${currentPage.toString()} of ${pageCount.toString()}`, alignment: 'center' as const, style: 'small', margin: [0,0,0,10] as const }; 
-      }
-    };
-    
     try {
-      pdfMake.createPdf(documentDefinition).download(`BatchInvoice-Water-${client.stallNo}-AllPeriods.pdf`);
+      await generatePdf(consolidatedInvoiceData, 'batch');
       
       const invoiceRecord: Omit<InvoiceRecordEntry, 'id' | 'createdAt' | 'invoiceDate' | 'paidAt'> & { createdAt: any, invoiceDate: any, paidAt?: any } = {
           invoiceNumber: consolidatedInvoiceData.invoiceNumber,
           invoiceType: 'batch',
+          utilityType: 'water',
           clientId: client.id,
           clientName: client.clientName,
           stallNo: client.stallNo,
@@ -512,6 +312,7 @@ export default function BatchInvoiceWaterPage() {
           billingPeriodDescription: "Consolidated Water - All Selected Periods",
           totalAmountDue: consolidatedInvoiceData.totalAmountDue,
           status: 'unpaid',
+          regenerationData: consolidatedInvoiceData,
           createdAt: serverTimestamp(),
       };
       await addDoc(collection(db, "invoices"), invoiceRecord);

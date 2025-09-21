@@ -25,7 +25,8 @@ import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp
 import type { InvoiceRecordDocument } from "@/types";
 import { MarkAsPaidModal } from "@/components/mark-as-paid-modal";
 import { format } from "date-fns";
-import { Archive, CheckCircle, Clock, FileText, DollarSign } from "lucide-react";
+import { Archive, CheckCircle, Clock, FileText, DollarSign, Download, Loader2 } from "lucide-react";
+import { generatePdf } from "@/lib/invoice-helpers";
 
 export default function InvoicesPage() {
   const { toast } = useToast();
@@ -33,6 +34,7 @@ export default function InvoicesPage() {
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecordDocument | null>(null);
+  const [isRedownloadingId, setIsRedownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoadingInvoices(true);
@@ -80,6 +82,24 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleRedownload = async (invoice: InvoiceRecordDocument) => {
+    if (!invoice.regenerationData) {
+      toast({ title: "Error", description: "This invoice lacks the data needed for redownloading.", variant: "destructive"});
+      return;
+    }
+    setIsRedownloadingId(invoice.id);
+    try {
+      await generatePdf(invoice.regenerationData, invoice.invoiceType);
+      toast({ title: "Invoice Redownloaded", description: `Invoice ${invoice.invoiceNumber} is being downloaded.`});
+    } catch (error) {
+      console.error("Error redownloading PDF: ", error);
+      toast({ title: "PDF Generation Failed", description: (error as Error).message || "Could not generate the PDF.", variant: "destructive"});
+    } finally {
+      setIsRedownloadingId(null);
+    }
+  };
+
+
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
@@ -95,7 +115,7 @@ export default function InvoicesPage() {
               All Generated Invoices
             </CardTitle>
             <CardDescription>
-              View and manage all single and batch invoices. Click on an invoice to see details or mark as paid.
+              View and manage all single and batch invoices. Click on an invoice to see details, redownload, or mark as paid.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -146,11 +166,27 @@ export default function InvoicesPage() {
                          )}
                       </div>
                      
-                      {invoice.status === 'unpaid' && (
-                        <Button size="sm" onClick={() => handleMarkAsPaidClick(invoice)} className="mt-2">
-                          <CheckCircle className="mr-2 h-4 w-4" /> Mark as Paid
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleRedownload(invoice)}
+                            disabled={isRedownloadingId === invoice.id || !invoice.regenerationData}
+                            title={!invoice.regenerationData ? "Redownload not available for this invoice" : "Redownload Invoice PDF"}
+                        >
+                            {isRedownloadingId === invoice.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Download className="mr-2 h-4 w-4" />
+                            )}
+                            Redownload
                         </Button>
-                      )}
+                        {invoice.status === 'unpaid' && (
+                            <Button size="sm" onClick={() => handleMarkAsPaidClick(invoice)}>
+                                <CheckCircle className="mr-2 h-4 w-4" /> Mark as Paid
+                            </Button>
+                        )}
+                      </div>
                     </AccordionContent>
                   </AccordionItem>
                 ))}
