@@ -46,12 +46,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
-import { Calendar as CalendarIcon, Edit, Search, XCircle, FileText, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Edit, Search, XCircle, FileText, Loader2, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, Timestamp, DocumentData, QueryConstraint, getDocs, limit, serverTimestamp } from "firebase/firestore";
 import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData } from "@/types";
-import { EditPowerReadingModal } from "@/components/edit-power-reading-modal"; // Import the new modal
+import { EditPowerReadingModal } from "@/components/edit-power-reading-modal"; 
+import { MarkReadingAsPaidModal } from "@/components/mark-reading-as-paid-modal";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -82,6 +83,9 @@ export default function PowerReadingsPage() {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingReading, setEditingReading] = useState<PowerReadingDocument | null>(null);
+
+  const [isPaidModalOpen, setIsPaidModalOpen] = useState(false);
+  const [payingReading, setPayingReading] = useState<PowerReadingDocument | null>(null);
 
 
   // Fetch clients for the filter dropdown
@@ -235,6 +239,11 @@ export default function PowerReadingsPage() {
   const handleEditClick = (reading: PowerReadingDocument) => {
     setEditingReading(reading);
     setIsEditModalOpen(true);
+  };
+  
+  const handleMarkAsPaidClick = (reading: PowerReadingDocument) => {
+    setPayingReading(reading);
+    setIsPaidModalOpen(true);
   };
 
   const clearFilters = () => {
@@ -421,6 +430,15 @@ export default function PowerReadingsPage() {
                         >
                           <Edit className="mr-1 h-3 w-3" /> Edit
                         </Button>
+                         <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => reading.id && handleMarkAsPaidClick(reading)}
+                          disabled={!reading.id}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <CheckCircle className="mr-1 h-3 w-3" /> Paid
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -487,7 +505,15 @@ export default function PowerReadingsPage() {
           reading={editingReading}
         />
       )}
+
+      {payingReading && (
+        <MarkReadingAsPaidModal
+          isOpen={isPaidModalOpen}
+          onOpenChange={setIsPaidModalOpen}
+          reading={payingReading}
+          utilityType="power"
+        />
+      )}
     </main>
   );
 }
-

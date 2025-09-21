@@ -38,12 +38,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
-import { Calendar as CalendarIcon, Edit, Search, XCircle, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Edit, Search, XCircle, Loader2, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, Timestamp, DocumentData, QueryConstraint } from "firebase/firestore";
 import type { ClientDocument, WaterReadingDocument } from "@/types";
 import { EditWaterReadingModal } from "@/components/edit-water-reading-modal";
+import { MarkReadingAsPaidModal } from "@/components/mark-reading-as-paid-modal";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -70,6 +71,9 @@ export default function WaterReadingsPage() {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingReading, setEditingReading] = useState<WaterReadingDocument | null>(null);
+
+  const [isPaidModalOpen, setIsPaidModalOpen] = useState(false);
+  const [payingReading, setPayingReading] = useState<WaterReadingDocument | null>(null);
 
   useEffect(() => {
     setIsLoadingClients(true);
@@ -140,6 +144,11 @@ export default function WaterReadingsPage() {
   const handleEditClick = (reading: WaterReadingDocument) => {
     setEditingReading(reading);
     setIsEditModalOpen(true);
+  };
+
+  const handleMarkAsPaidClick = (reading: WaterReadingDocument) => {
+    setPayingReading(reading);
+    setIsPaidModalOpen(true);
   };
 
   const clearFilters = () => {
@@ -312,6 +321,15 @@ export default function WaterReadingsPage() {
                         >
                           <Edit className="mr-1 h-3 w-3" /> Edit
                         </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => reading.id && handleMarkAsPaidClick(reading)}
+                          disabled={!reading.id}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <CheckCircle className="mr-1 h-3 w-3" /> Paid
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -327,6 +345,15 @@ export default function WaterReadingsPage() {
           isOpen={isEditModalOpen}
           onOpenChange={setIsEditModalOpen}
           reading={editingReading}
+        />
+      )}
+
+      {payingReading && (
+        <MarkReadingAsPaidModal
+          isOpen={isPaidModalOpen}
+          onOpenChange={setIsPaidModalOpen}
+          reading={payingReading}
+          utilityType="water"
         />
       )}
     </main>
