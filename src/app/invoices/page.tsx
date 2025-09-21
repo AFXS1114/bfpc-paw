@@ -30,12 +30,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp, where, getDocs, writeBatch, limit } from "firebase/firestore";
 import type { InvoiceRecordDocument, ClientDocument, UtilityType } from "@/types";
 import { MarkAsPaidModal } from "@/components/mark-as-paid-modal";
 import { format } from "date-fns";
 import { Archive, CheckCircle, Clock, FileText, DollarSign, Download, Loader2, ListFilter, XCircle } from "lucide-react";
 import { generatePdf } from "@/lib/invoice-helpers";
+
+const MONTHS_ARRAY = [ 
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
 
 export default function InvoicesPage() {
   const { toast } = useToast();
@@ -117,16 +122,75 @@ export default function InvoicesPage() {
   };
 
   const handleConfirmPayment = async (invoiceId: string, orNumber: string) => {
+    if (!selectedInvoice) {
+        throw new Error("No invoice selected to process payment.");
+    }
+    const batch = writeBatch(db);
+
     try {
-      const invoiceRef = doc(db, "invoices", invoiceId);
-      await updateDoc(invoiceRef, {
-        status: "paid",
-        officialReceiptNumber: orNumber,
-        paidAt: serverTimestamp(),
-      });
+        // 1. Update the invoice status
+        const invoiceRef = doc(db, "invoices", invoiceId);
+        batch.update(invoiceRef, {
+            status: "paid",
+            officialReceiptNumber: orNumber,
+            paidAt: serverTimestamp(),
+        });
+        
+        // 2. Update the corresponding reading(s) notes
+        const { regenerationData, clientId, utilityType } = selectedInvoice;
+        const readingsCollectionName = utilityType === 'power' ? 'power-readings' : 'water-readings';
+        const updatedNotes = `Paid - OR# ${orNumber}`;
+
+        if (selectedInvoice.invoiceType === 'single') {
+            const { billingMonth, billingYear } = regenerationData;
+            const readingQuery = query(
+                collection(db, readingsCollectionName),
+                where("clientId", "==", clientId),
+                where("billingMonth", "==", billingMonth),
+                where("billingYear", "==", billingYear),
+                limit(1)
+            );
+            const readingSnapshot = await getDocs(readingQuery);
+            if (!readingSnapshot.empty) {
+                const readingDocRef = readingSnapshot.docs[0].ref;
+                batch.update(readingDocRef, { notes: updatedNotes });
+            } else {
+                 console.warn(`Could not find a matching single reading for invoice ${invoiceId} to update notes.`);
+            }
+        } else { // 'batch'
+            const lineItems = regenerationData.lineItems || [];
+            for (const item of lineItems) {
+                const descriptionParts = item.description.split(" - ");
+                const periodPart = descriptionParts.length > 1 ? descriptionParts[1] : "";
+                const [monthStr, yearStr] = periodPart.split(" ");
+                const billingMonth = monthStr;
+                const billingYear = parseInt(yearStr, 10);
+
+                if (billingMonth && !isNaN(billingYear)) {
+                    const readingQuery = query(
+                        collection(db, readingsCollectionName),
+                        where("clientId", "==", clientId),
+                        where("billingMonth", "==", billingMonth),
+                        where("billingYear", "==", billingYear),
+                        limit(1)
+                    );
+                     const readingSnapshot = await getDocs(readingQuery);
+                     if (!readingSnapshot.empty) {
+                        const readingDocRef = readingSnapshot.docs[0].ref;
+                        batch.update(readingDocRef, { notes: updatedNotes });
+                     } else {
+                         console.warn(`Could not find a matching batch reading for period ${billingMonth} ${billingYear} for invoice ${invoiceId}.`);
+                     }
+                }
+            }
+        }
+        
+        // Commit all updates
+        await batch.commit();
+
     } catch (error) {
-      console.error("Error updating invoice status: ", error);
-      throw error;
+        console.error("Error updating invoice status and reading notes: ", error);
+        throw error;
     }
   };
 
@@ -316,3 +380,5 @@ export default function InvoicesPage() {
     </main>
   );
 }
+
+    
