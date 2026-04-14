@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp, addDoc, serverTimestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, WaterReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument, ReadingPerformerDocument, VerifierDocument, InvoiceRecordEntry, UtilityType } from "@/types";
+import type { ClientDocument, PowerReadingDocument, WaterReadingDocument, MotherBillDocument, InvoiceData, SignatoryDocument, ReadingPerformerDocument, VerifierDocument, InvoiceRecordEntry, UtilityType, MonthlyRateDocument } from "@/types";
 import { FileText, Search, Loader2, Download, UserCog, UserCheck, Edit3, Zap, Droplet } from "lucide-react";
 import { format } from "date-fns";
 import { useModule } from "@/context/module-context";
@@ -72,7 +72,6 @@ export default function InvoicingPage() {
         icon: <Droplet className="h-6 w-6 text-primary" />,
       };
     }
-    // Default to power
     return {
       utilityType: 'power' as UtilityType,
       pageTitle: 'Create Power Invoice',
@@ -109,11 +108,13 @@ export default function InvoicingPage() {
         return;
       }
 
+      const yearInt = parseInt(selectedBillingYear, 10);
+
       const readingQuery = query(
         collection(db, utilityConfig.readingsCollection),
         where("clientId", "==", selectedClientId),
         where("billingMonth", "==", selectedBillingMonth),
-        where("billingYear", "==", parseInt(selectedBillingYear, 10)),
+        where("billingYear", "==", yearInt),
         limit(1)
       );
       const readingSnapshot = await getDocs(readingQuery);
@@ -124,27 +125,50 @@ export default function InvoicingPage() {
       }
       const readingDoc = readingSnapshot.docs[0].data() as PowerReadingDocument | WaterReadingDocument;
 
-      const motherBillQuery = query(
-        collection(db, "mother-bills"),
+      // 1. Check for manual rate first
+      let basicRate = 0;
+      let motherBillTotalAmount = 0;
+      let motherBillTotalConsumption = 0;
+
+      const manualRateQuery = query(
+        collection(db, "monthly-rates"),
         where("utilityType", "==", utilityConfig.utilityType),
         where("billingMonth", "==", selectedBillingMonth),
-        where("billingYear", "==", parseInt(selectedBillingYear, 10)),
+        where("billingYear", "==", yearInt),
         limit(1)
       );
-      const motherBillSnapshot = await getDocs(motherBillQuery);
+      const manualRateSnapshot = await getDocs(manualRateQuery);
 
-      if (motherBillSnapshot.empty) {
-        toast({ title: "Mother Bill Not Found", variant: "destructive" });
-        setIsGeneratingPreview(false); return;
-      }
-      const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
+      if (!manualRateSnapshot.empty) {
+        const manualRateDoc = manualRateSnapshot.docs[0].data() as MonthlyRateDocument;
+        basicRate = manualRateDoc.rate;
+        console.log("Using manual rate override:", basicRate);
+      } else {
+        // 2. Fallback to mother bill
+        const motherBillQuery = query(
+          collection(db, "mother-bills"),
+          where("utilityType", "==", utilityConfig.utilityType),
+          where("billingMonth", "==", selectedBillingMonth),
+          where("billingYear", "==", yearInt),
+          limit(1)
+        );
+        const motherBillSnapshot = await getDocs(motherBillQuery);
 
-      if (motherBill.totalConsumption === 0) {
-        toast({ title: "Invalid Mother Bill Data", variant: "destructive" });
-        setIsGeneratingPreview(false); return;
+        if (motherBillSnapshot.empty) {
+          toast({ title: "Rate Calculation Error", description: "No manual rate or mother bill found for this period.", variant: "destructive" });
+          setIsGeneratingPreview(false); return;
+        }
+        const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
+        motherBillTotalAmount = motherBill.totalAmountBilled;
+        motherBillTotalConsumption = motherBill.totalConsumption;
+
+        if (motherBill.totalConsumption === 0) {
+          toast({ title: "Invalid Mother Bill Data", description: "Mother bill consumption is zero.", variant: "destructive" });
+          setIsGeneratingPreview(false); return;
+        }
+        basicRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
       }
       
-      const basicRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
       const consumptionValue = (readingDoc as any)[utilityConfig.consumptionField] as number;
       const amountBeforeVAT = basicRate * consumptionValue;
       const vatAmount = amountBeforeVAT * 0.12; 
@@ -159,7 +183,7 @@ export default function InvoicingPage() {
         clientName: client.clientName,
         stallNo: client.stallNo,
         billingMonth: selectedBillingMonth,
-        billingYear: parseInt(selectedBillingYear, 10),
+        billingYear: yearInt,
         
         clientPreviousReading: readingDoc.previousReading,
         clientPresentReading: readingDoc.presentReading,
@@ -167,8 +191,8 @@ export default function InvoicingPage() {
         clientTotalM3: utilityConfig.utilityType === 'water' ? consumptionValue : undefined,
         consumptionUnit: utilityConfig.consumptionUnit,
 
-        motherBillTotalAmount: motherBill.totalAmountBilled,
-        motherBillTotalConsumption: motherBill.totalConsumption,
+        motherBillTotalAmount: motherBillTotalAmount > 0 ? motherBillTotalAmount : undefined,
+        motherBillTotalConsumption: motherBillTotalConsumption > 0 ? motherBillTotalConsumption : undefined,
         basicRate: basicRate,
         amountBeforeVAT: amountBeforeVAT,
         vatAmount: vatAmount,
@@ -329,6 +353,7 @@ export default function InvoicingPage() {
                     <p><strong>Client:</strong> {invoiceData.clientName} ({invoiceData.stallNo})</p>
                     <p><strong>Period:</strong> {invoiceData.billingMonth} {invoiceData.billingYear}</p>
                     <p><strong>Total {invoiceData.consumptionUnit}:</strong> {(invoiceData.clientTotalKwh ?? invoiceData.clientTotalM3)?.toLocaleString() ?? 'N/A'}</p>
+                    <p><strong>Multiplier Rate:</strong> P{invoiceData.basicRate.toFixed(4)}</p>
                     <p><strong>Total Amount Due:</strong> P{invoiceData.totalAmountDue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
             </CardContent>

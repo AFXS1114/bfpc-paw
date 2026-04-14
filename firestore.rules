@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -21,6 +22,11 @@ service cloud.firestore {
     // Rules for the 'mother-bills' collection - OPEN ACCESS
     match /mother-bills/{billId} {
       allow read, write: if true; // Allows anyone to read, create, update, delete
+    }
+    
+    // Rules for 'monthly-rates' collection - OPEN ACCESS
+    match /monthly-rates/{rateId} {
+      allow read, write: if true;
     }
     
      match /app-users/{userId} {

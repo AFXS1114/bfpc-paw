@@ -148,6 +148,21 @@ export interface MotherBillDocument extends Omit<MotherBillEntry, 'id' | 'create
     createdAt: Date;
 }
 
+// New Monthly Rate Management
+export interface MonthlyRateEntry {
+  id?: string;
+  utilityType: UtilityType;
+  billingMonth: string;
+  billingYear: number;
+  rate: number;
+  createdAt: FieldValue | Timestamp;
+}
+
+export interface MonthlyRateDocument extends Omit<MonthlyRateEntry, 'id' | 'createdAt'> {
+  id: string;
+  createdAt: Date;
+}
+
 // For invoice generation modal and dedicated invoicing page
 export interface InvoiceData {
   // Client Details (always present)

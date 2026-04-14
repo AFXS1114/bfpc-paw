@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { AppUserRole, ClientDocument, MotherBillEntry, PowerReadingEntry, WaterReadingEntry } from "@/types";
+import type { AppUserRole, ClientDocument, MotherBillEntry, PowerReadingEntry, WaterReadingEntry, MonthlyRateEntry, MonthlyRateDocument, UtilityType } from "@/types";
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -16,9 +16,35 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea"; 
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, DatabaseBackup, Loader2, Users, UserPlus, Edit3, UserCog, List, UploadCloud, Eye, UserCheck, Droplet } from "lucide-react";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  Palette,
+  DatabaseBackup,
+  Loader2,
+  Users,
+  UserPlus,
+  Edit3,
+  UserCog,
+  List,
+  UploadCloud,
+  Eye,
+  UserCheck,
+  Droplet,
+  Zap,
+  Tags,
+  Plus,
+  Trash2
+} from "lucide-react";
 import { importHistoricalMotherBills } from "@/lib/import-mother-bills";
 import { AddUserModal } from "@/components/add-user-modal";
 import { ViewUsersModal } from "@/components/view-users-modal"; 
@@ -29,13 +55,15 @@ import { ViewReadingPerformersModal } from "@/components/view-reading-performers
 import { AddVerifierModal } from "@/components/add-verifier-modal"; 
 import { ViewVerifiersModal } from "@/components/view-verifiers-modal"; 
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, getDocs, limit, Timestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, where, getDocs, limit, Timestamp, deleteDoc, doc } from "firebase/firestore";
 
 
-const MONTHS_FOR_PARSING = [
+const MONTHS_ARRAY = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -60,6 +88,22 @@ export default function SettingsPage() {
   const [waterJsonInputString, setWaterJsonInputString] = useState<string>("");
   const [isImportingWaterMotherBills, setIsImportingWaterMotherBills] = useState(false);
 
+  // Rate Management States
+  const [manualRates, setManualRates] = useState<MonthlyRateDocument[]>([]);
+  const [isLoadingRates, setIsLoadingRates] = useState(true);
+  const [isSavingRate, setIsSavingRate] = useState(false);
+  const [rateForm, setRateForm] = useState<{
+    utilityType: UtilityType;
+    billingMonth: string;
+    billingYear: string;
+    rate: string;
+  }>({
+    utilityType: 'power',
+    billingMonth: MONTHS_ARRAY[new Date().getMonth()],
+    billingYear: currentYear.toString(),
+    rate: "",
+  });
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -81,9 +125,22 @@ export default function SettingsPage() {
       toast({ title: "Error", description: "Failed to fetch clients for import dropdown.", variant: "destructive" });
       setIsLoadingClients(false);
     });
+
+    setIsLoadingRates(true);
+    const ratesQuery = query(collection(db, "monthly-rates"), orderBy("billingYear", "desc"), orderBy("createdAt", "desc"));
+    const unsubscribeRates = onSnapshot(ratesQuery, (snapshot) => {
+      const ratesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date(),
+      } as MonthlyRateDocument));
+      setManualRates(ratesData);
+      setIsLoadingRates(false);
+    });
     
     return () => {
       unsubscribeClients();
+      unsubscribeRates();
     };
   }, [toast]);
 
@@ -150,7 +207,6 @@ export default function SettingsPage() {
     const collectionName = clientImportType === 'power' ? 'power-readings' : 'water-readings';
     const readingsCollection = collection(db, collectionName);
 
-    // Logic diverges based on expected JSON format for power vs water
     if (clientImportType === 'power') {
       if (typeof parsedJsonData !== 'object' || parsedJsonData === null || Array.isArray(parsedJsonData)) {
         toast({ title: "Invalid JSON Format", description: "Power readings import expects a JSON object of objects.", variant: "destructive" });
@@ -202,7 +258,7 @@ export default function SettingsPage() {
           continue;
         }
 
-        const monthIndex = MONTHS_FOR_PARSING.indexOf(billingMonth);
+        const monthIndex = MONTHS_ARRAY.indexOf(billingMonth);
         if (monthIndex === -1) {
             console.warn(`Invalid month string: ${billingMonth} in record:`, record);
             skippedCount++;
@@ -338,6 +394,59 @@ export default function SettingsPage() {
     setIsImportingWaterMotherBills(false);
   };
 
+  const handleSaveManualRate = async () => {
+    if (!rateForm.rate || isNaN(parseFloat(rateForm.rate))) {
+      toast({ title: "Invalid Rate", description: "Please enter a valid numeric rate.", variant: "destructive" });
+      return;
+    }
+    setIsSavingRate(true);
+    try {
+      const year = parseInt(rateForm.billingYear, 10);
+      
+      // Check for existing rate for this period/utility
+      const q = query(
+        collection(db, "monthly-rates"),
+        where("utilityType", "==", rateForm.utilityType),
+        where("billingMonth", "==", rateForm.billingMonth),
+        where("billingYear", "==", year),
+        limit(1)
+      );
+      const existing = await getDocs(q);
+      
+      if (!existing.empty) {
+        toast({ title: "Duplicate Entry", description: `A rate for ${rateForm.utilityType} in ${rateForm.billingMonth} ${year} already exists.`, variant: "destructive" });
+        setIsSavingRate(false);
+        return;
+      }
+
+      const rateEntry: Omit<MonthlyRateEntry, 'id'> = {
+        utilityType: rateForm.utilityType,
+        billingMonth: rateForm.billingMonth,
+        billingYear: year,
+        rate: parseFloat(rateForm.rate),
+        createdAt: serverTimestamp(),
+      };
+
+      await addDoc(collection(db, "monthly-rates"), rateEntry);
+      toast({ title: "Rate Saved", description: `Multiplier for ${rateForm.utilityType} set to P${rateForm.rate} for ${rateForm.billingMonth} ${year}.` });
+      setRateForm(prev => ({ ...prev, rate: "" }));
+    } catch (error) {
+      console.error("Error saving rate: ", error);
+      toast({ title: "Error", description: "Failed to save rate.", variant: "destructive" });
+    } finally {
+      setIsSavingRate(false);
+    }
+  };
+
+  const handleDeleteRate = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "monthly-rates", id));
+      toast({ title: "Rate Deleted" });
+    } catch (e) {
+      toast({ title: "Error", description: "Could not delete rate.", variant: "destructive" });
+    }
+  };
+
 
   const canManageUsersAndData = userRole !== 'billing-officer';
 
@@ -357,6 +466,99 @@ export default function SettingsPage() {
             <ThemeSwitcher />
           </CardContent>
         </Card>
+
+        {canManageUsersAndData && (
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Tags className="h-6 w-6 text-primary" />
+                Monthly Rate Management
+              </CardTitle>
+              <CardDescription>
+                Manually input the monthly rates (multiplier) to be used per kWh or m³. These rates will override Mother Bill calculations.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end border p-4 rounded-md bg-muted/20">
+                <div>
+                  <Label>Utility Type</Label>
+                  <Select value={rateForm.utilityType} onValueChange={(val: any) => setRateForm(prev => ({ ...prev, utilityType: val }))}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="power">Power (kWh)</SelectItem>
+                      <SelectItem value="water">Water (m³)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Month</Label>
+                  <Select value={rateForm.billingMonth} onValueChange={(val) => setRateForm(prev => ({ ...prev, billingMonth: val }))}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>{MONTHS_ARRAY.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Year</Label>
+                  <Select value={rateForm.billingYear} onValueChange={(val) => setRateForm(prev => ({ ...prev, billingYear: val }))}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>{YEARS.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Rate (P/unit)</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input 
+                      type="number" 
+                      step="0.0001" 
+                      placeholder="e.g., 15.45" 
+                      value={rateForm.rate} 
+                      onChange={(e) => setRateForm(prev => ({ ...prev, rate: e.target.value }))}
+                    />
+                    <Button onClick={handleSaveManualRate} disabled={isSavingRate}>
+                      {isSavingRate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-md border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Utility</TableHead>
+                      <TableHead>Period</TableHead>
+                      <TableHead className="text-right">Multiplier Rate</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoadingRates ? (
+                      <TableRow><TableCell colSpan={4} className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                    ) : manualRates.length === 0 ? (
+                      <TableRow><TableCell colSpan={4} className="text-center py-4 text-muted-foreground">No manual rates set.</TableCell></TableRow>
+                    ) : (
+                      manualRates.map(r => (
+                        <TableRow key={r.id}>
+                          <TableCell className="capitalize flex items-center gap-2">
+                            {r.utilityType === 'power' ? <Zap className="h-3 w-3 text-yellow-500" /> : <Droplet className="h-3 w-3 text-blue-500" />}
+                            {r.utilityType}
+                          </TableCell>
+                          <TableCell>{r.billingMonth} {r.billingYear}</TableCell>
+                          <TableCell className="text-right font-mono font-bold text-primary">P{r.rate.toFixed(4)}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteRate(r.id)} className="text-destructive hover:bg-destructive/10">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         
         {canManageUsersAndData && (
           <Card className="shadow-lg">

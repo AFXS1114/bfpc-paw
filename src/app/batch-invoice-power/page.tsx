@@ -33,7 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp, addDoc, serverTimestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument, InvoiceRecordEntry } from "@/types";
+import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument, InvoiceRecordEntry, MonthlyRateDocument } from "@/types";
 import { Search, Loader2, Download, Layers } from "lucide-react";
 import { format, isValid } from "date-fns";
 import { generatePdf } from '@/lib/invoice-helpers';
@@ -208,28 +208,45 @@ export default function BatchInvoicePowerPage() {
       if (!reading) continue;
 
       try {
-        const motherBillQuery = query(
-          collection(db, "mother-bills"),
+        let basicRate = 0;
+
+        // 1. Check for manual rate override first
+        const manualRateQuery = query(
+          collection(db, "monthly-rates"),
           where("utilityType", "==", "power"),
           where("billingMonth", "==", reading.billingMonth),
           where("billingYear", "==", reading.billingYear),
           limit(1)
         );
-        const motherBillSnapshot = await getDocs(motherBillQuery);
+        const manualRateSnapshot = await getDocs(manualRateQuery);
 
-        if (motherBillSnapshot.empty) {
-          toast({ title: `Mother Bill Missing`, description: `No mother bill for ${reading.billingMonth} ${reading.billingYear}. Skipping this period.`, variant: "default", duration: 5000 });
-          hasErrors = true;
-          continue;
-        }
-        const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
-        if (motherBill.totalConsumption === 0) {
-          toast({ title: `Invalid Mother Bill`, description: `Mother bill for ${reading.billingMonth} ${reading.billingYear} has zero consumption. Skipping.`, variant: "default", duration: 5000 });
-          hasErrors = true;
-          continue;
+        if (!manualRateSnapshot.empty) {
+          basicRate = (manualRateSnapshot.docs[0].data() as MonthlyRateDocument).rate;
+        } else {
+          // 2. Fallback to mother bill
+          const motherBillQuery = query(
+            collection(db, "mother-bills"),
+            where("utilityType", "==", "power"),
+            where("billingMonth", "==", reading.billingMonth),
+            where("billingYear", "==", reading.billingYear),
+            limit(1)
+          );
+          const motherBillSnapshot = await getDocs(motherBillQuery);
+
+          if (motherBillSnapshot.empty) {
+            toast({ title: `Rate Missing`, description: `No manual rate or mother bill for ${reading.billingMonth} ${reading.billingYear}. Skipping.`, variant: "default", duration: 5000 });
+            hasErrors = true;
+            continue;
+          }
+          const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
+          if (motherBill.totalConsumption === 0) {
+            toast({ title: `Invalid Mother Bill`, description: `Mother bill for ${reading.billingMonth} ${reading.billingYear} has zero consumption. Skipping.`, variant: "default", duration: 5000 });
+            hasErrors = true;
+            continue;
+          }
+          basicRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
         }
 
-        const basicRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
         const itemAmountBeforeVAT = basicRate * reading.totalKwh;
         overallAmountBeforeVAT += itemAmountBeforeVAT;
         
