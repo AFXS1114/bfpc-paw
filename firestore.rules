@@ -1,53 +1,114 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rules for the 'clients' collection - OPEN ACCESS
-    match /clients/{clientId} {
-      allow read, write: if true; // Allows anyone to read, create, update, delete
+    /**
+     * CORE PHILOSOPHY
+     * This ruleset implements an "Authorization Independence" model designed for utility billing management. 
+     * Security is enforced via denormalized authorization context (adminId and linkedTenantUserUid) 
+     * present on every document. This ensures that permissions are resolved locally at the document level, 
+     * avoiding complex and expensive cross-document lookups.
+     *
+     * DATA STRUCTURE
+     * The database is organized into top-level collections: /tenants, /billing_periods, /utility_readings, 
+     * and /tenant_bills. Each entity contains the necessary metadata to authorize access for both 
+     * managing administrators and associated tenant users.
+     *
+     * KEY SECURITY DECISIONS
+     * 1. Admin Control: Writing (create, update, delete) is strictly reserved for the administrator 
+     *    identified by the 'adminId' field.
+     * 2. Shared Read Access: Both the managing administrator ('adminId') and the linked tenant 
+     *    ('linkedTenantUserUid') are granted read access (get, list) to relevant records.
+     * 3. Relational Integrity: During creation, rules enforce that the document's internal 'id' 
+     *    matches the Firestore document ID to ensure path-to-data consistency.
+     * 4. Denormalization: Authorization fields are copied onto every record to enable high-performance 
+     *    Query-Appended Permissions (QAPs).
+     */
+
+    // --- Helper Functions ---
+
+    /** @description Checks if the user is authenticated. */
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Rules for the 'power-readings' collection - OPEN ACCESS
-    match /power-readings/{readingId} {
-      allow read, write, delete: if true; // Allows anyone to read, create, update, delete
+    /** @description Validates if the authenticated user matches the provided admin ID. */
+    function isAdmin(adminId) {
+      return isSignedIn() && request.auth.uid == adminId;
     }
 
-    // Rules for the 'water-readings' collection - OPEN ACCESS
-    match /water-readings/{readingId} {
-      allow read, write, delete: if true; // Allows anyone to read, create, update, delete
+    /** @description Validates if the authenticated user matches the provided linked tenant UID. */
+    function isLinkedUser(userUid) {
+      return isSignedIn() && request.auth.uid == userUid;
     }
 
-    // Rules for the 'mother-bills' collection - OPEN ACCESS
-    match /mother-bills/{billId} {
-      allow read, write: if true; // Allows anyone to read, create, update, delete
-    }
-    
-    // Rules for 'monthly-rates' collection - OPEN ACCESS
-    match /monthly-rates/{rateId} {
-      allow read, write: if true;
-    }
-    
-     match /app-users/{userId} {
-      allow read, write: if true;
-    }
-    match /signatories/{signatoryId} {
-      allow read, write: if true; // Allows anyone to read, create, update, delete
-    }
-    // Rules for the 'reading-performers' collection - OPEN ACCESS
-    match /reading-performers/{performerId} {
-      allow read, write: if true;
+    /** @description Checks for administrative ownership on existing documents. */
+    function isExistingAdmin(data) {
+      return data != null && isAdmin(data.adminId);
     }
 
-    // Rules for the 'verifiers' collection - OPEN ACCESS
-    match /verifiers/{verifierId} {
-      allow read, write: if true; // Allows anyone to read, create, update, delete
+    /** @description Validates administrative ownership for new document creation. */
+    function isNewAdmin(data) {
+      return isAdmin(data.adminId);
     }
 
-    // Rules for the 'invoices' collection - OPEN ACCESS
-    match /invoices/{invoiceId} {
-      allow read, write, delete: if true; // Allows anyone to read, create, update, delete
+    /** @description Checks if the user has permission to read based on admin or tenant link. */
+    function canReadDocument(data) {
+      return isAdmin(data.adminId) || (data.linkedTenantUserUid != null && isLinkedUser(data.linkedTenantUserUid));
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for the Tenant collection. Admins manage tenants; tenants can view their own data.
+     * @path /tenants/{tenantId}
+     * @allow (get) If user is the managing admin or the linked tenant.
+     * @deny (update) If user is not the managing admin or document doesn't exist.
+     * @principle Enforces admin-only writes while allowing shared reads via denormalized UIDs.
+     */
+    match /tenants/{tenantId} {
+      allow get, list: if canReadDocument(resource.data);
+      allow create: if isNewAdmin(request.resource.data) && request.resource.data.id == tenantId;
+      allow update, delete: if isExistingAdmin(resource.data);
+    }
+
+    /**
+     * @description Rules for Billing Periods. Only admins manage and view billing cycles.
+     * @path /billing_periods/{billingPeriodId}
+     * @allow (create) If adminId in data matches auth.uid.
+     * @deny (list) If user is not the admin associated with the records.
+     * @principle Restricts billing cycle management to authorized administrators.
+     */
+    match /billing_periods/{billingPeriodId} {
+      allow get, list: if isAdmin(resource.data.adminId);
+      allow create: if isNewAdmin(request.resource.data) && request.resource.data.id == billingPeriodId;
+      allow update, delete: if isExistingAdmin(resource.data);
+    }
+
+    /**
+     * @description Rules for Utility Readings. Records power/water usage. Shared read for linked tenants.
+     * @path /utility_readings/{readingId}
+     * @allow (list) If query includes where('adminId', '==', uid) or where('linkedTenantUserUid', '==', uid).
+     * @deny (create) If adminId in document does not match the authenticated user.
+     * @principle Uses denormalized auth fields to satisfy Query-Appended Permissions (QAPs).
+     */
+    match /utility_readings/{readingId} {
+      allow get, list: if canReadDocument(resource.data);
+      allow create: if isNewAdmin(request.resource.data) && request.resource.data.id == readingId;
+      allow update, delete: if isExistingAdmin(resource.data);
+    }
+
+    /**
+     * @description Rules for Tenant Bills. Generated costs for specific periods.
+     * @path /tenant_bills/{tenantBillId}
+     * @allow (get) If the tenant is viewing their own specific bill.
+     * @deny (delete) If the user is a tenant (only admins can delete/void bills).
+     * @principle Secures financial data while allowing tenants to access their own billing history.
+     */
+    match /tenant_bills/{tenantBillId} {
+      allow get, list: if canReadDocument(resource.data);
+      allow create: if isNewAdmin(request.resource.data) && request.resource.data.id == tenantBillId;
+      allow update, delete: if isExistingAdmin(resource.data);
     }
   }
 }

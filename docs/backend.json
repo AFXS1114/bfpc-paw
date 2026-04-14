@@ -1,0 +1,353 @@
+{
+  "entities": {
+    "Tenant": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Tenant",
+      "type": "object",
+      "description": "Represents a single tenant or unit responsible for utility consumption and billing. This can include individual residents/units or a designated 'Building' tenant for master meters.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Tenant entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name or identifier of the tenant (e.g., 'Apartment 101', 'John Doe', 'Building Master Meter')."
+        },
+        "email": {
+          "type": "string",
+          "description": "Optional email address for contacting the tenant.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Optional phone number for contacting the tenant."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the tenant record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the tenant record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UtilityReading": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UtilityReading",
+      "type": "object",
+      "description": "Records a single power or water meter reading at a specific point in time. This applies to both individual tenant sub-meters and main building 'mother' meters.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UtilityReading entity."
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Reference to the Tenant (individual unit or 'Building Master Meter') associated with this reading. (Relationship: Tenant 1:N UtilityReading)"
+        },
+        "billingPeriodId": {
+          "type": "string",
+          "description": "Reference to the BillingPeriod this reading is associated with. (Relationship: BillingPeriod 1:N UtilityReading)"
+        },
+        "readingType": {
+          "type": "string",
+          "description": "The type of utility reading ('power' or 'water')."
+        },
+        "value": {
+          "type": "number",
+          "description": "The actual numeric value recorded from the meter (e.g., kWh, m³)."
+        },
+        "unit": {
+          "type": "string",
+          "description": "The unit of measurement for the reading (e.g., 'kWh', 'm3', 'gallons')."
+        },
+        "readingDate": {
+          "type": "string",
+          "description": "The date and time when the reading was taken.",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional notes or observations related to this reading (e.g., 'estimated reading')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the utility reading record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the utility reading record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "tenantId",
+        "billingPeriodId",
+        "readingType",
+        "value",
+        "unit",
+        "readingDate",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BillingPeriod": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BillingPeriod",
+      "type": "object",
+      "description": "Defines a specific billing cycle, including overall consumption and costs from the 'mother' bill for both power and water. It links to the start and end readings for the main building meters.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the BillingPeriod entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "A descriptive name for the billing period (e.g., 'April 2026 Billing')."
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The start date and time of the billing period.",
+          "format": "date-time"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "The end date and time of the billing period.",
+          "format": "date-time"
+        },
+        "motherPowerStartReadingId": {
+          "type": "string",
+          "description": "Reference to the UtilityReading entity representing the initial 'mother' power meter reading for this period. (Relationship: BillingPeriod 1:1 UtilityReading)"
+        },
+        "motherPowerEndReadingId": {
+          "type": "string",
+          "description": "Reference to the UtilityReading entity representing the final 'mother' power meter reading for this period. (Relationship: BillingPeriod 1:1 UtilityReading)"
+        },
+        "totalPowerConsumptionRecorded": {
+          "type": "number",
+          "description": "The total power consumption recorded from the 'mother' meter for this period, derived from the start and end mother readings."
+        },
+        "totalPowerCostInBill": {
+          "type": "number",
+          "description": "The total cost for power from the 'mother' utility bill for this period."
+        },
+        "motherWaterStartReadingId": {
+          "type": "string",
+          "description": "Reference to the UtilityReading entity representing the initial 'mother' water meter reading for this period. (Relationship: BillingPeriod 1:1 UtilityReading)"
+        },
+        "motherWaterEndReadingId": {
+          "type": "string",
+          "description": "Reference to the UtilityReading entity representing the final 'mother' water meter reading for this period. (Relationship: BillingPeriod 1:1 UtilityReading)"
+        },
+        "totalWaterConsumptionRecorded": {
+          "type": "number",
+          "description": "The total water consumption recorded from the 'mother' meter for this period, derived from the start and end mother readings."
+        },
+        "totalWaterCostInBill": {
+          "type": "number",
+          "description": "The total cost for water from the 'mother' utility bill for this period."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the billing period record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the billing period record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "startDate",
+        "endDate",
+        "motherPowerStartReadingId",
+        "motherPowerEndReadingId",
+        "totalPowerConsumptionRecorded",
+        "totalPowerCostInBill",
+        "motherWaterStartReadingId",
+        "motherWaterEndReadingId",
+        "totalWaterConsumptionRecorded",
+        "totalWaterCostInBill",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TenantBill": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TenantBill",
+      "type": "object",
+      "description": "Represents a calculated bill for a specific tenant within a given billing period, based on their individual consumption and their share of the 'mother' bill.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the TenantBill entity."
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Reference to the Tenant for whom this bill is generated. (Relationship: Tenant 1:N TenantBill)"
+        },
+        "billingPeriodId": {
+          "type": "string",
+          "description": "Reference to the BillingPeriod this bill belongs to. (Relationship: BillingPeriod 1:N TenantBill)"
+        },
+        "powerConsumption": {
+          "type": "number",
+          "description": "The tenant's calculated power consumption for the billing period."
+        },
+        "powerCost": {
+          "type": "number",
+          "description": "The tenant's calculated share of the total power cost for the billing period."
+        },
+        "waterConsumption": {
+          "type": "number",
+          "description": "The tenant's calculated water consumption for the billing period."
+        },
+        "waterCost": {
+          "type": "number",
+          "description": "The tenant's calculated share of the total water cost for the billing period."
+        },
+        "fixedCharges": {
+          "type": "number",
+          "description": "Any additional fixed charges or service fees applied to this tenant's bill."
+        },
+        "totalAmountDue": {
+          "type": "number",
+          "description": "The total amount due from the tenant for this billing period, including all calculated costs and fixed charges."
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The date by which the bill is due.",
+          "format": "date-time"
+        },
+        "isPaid": {
+          "type": "boolean",
+          "description": "Indicates whether the tenant has paid this bill."
+        },
+        "paidDate": {
+          "type": "string",
+          "description": "The date and time when the bill was paid, if applicable.",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional notes or comments regarding this tenant's bill."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the tenant bill record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the tenant bill record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "tenantId",
+        "billingPeriodId",
+        "powerConsumption",
+        "powerCost",
+        "waterConsumption",
+        "waterCost",
+        "fixedCharges",
+        "totalAmountDue",
+        "dueDate",
+        "isPaid",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/tenants/{tenantId}",
+        "definition": {
+          "entityName": "Tenant",
+          "schema": {
+            "$ref": "#/backend/entities/Tenant"
+          },
+          "description": "Collection for individual tenants or units. Each document includes denormalized 'adminId' (the Firebase UID of the managing administrator) and 'linkedTenantUserUid' (the Firebase UID of the actual tenant user, if linked) for authorization independence and secure list operations. The 'tenantId' wildcard represents the unique identifier for a Tenant.",
+          "params": [
+            {
+              "name": "tenantId",
+              "description": "The unique identifier for a Tenant."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/billing_periods/{billingPeriodId}",
+        "definition": {
+          "entityName": "BillingPeriod",
+          "schema": {
+            "$ref": "#/backend/entities/BillingPeriod"
+          },
+          "description": "Collection for defining billing cycles. Each document includes denormalized 'adminId' (the Firebase UID of the managing administrator) for authorization independence and secure list operations. The 'billingPeriodId' wildcard represents the unique identifier for a BillingPeriod.",
+          "params": [
+            {
+              "name": "billingPeriodId",
+              "description": "The unique identifier for a BillingPeriod."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/utility_readings/{readingId}",
+        "definition": {
+          "entityName": "UtilityReading",
+          "schema": {
+            "$ref": "#/backend/entities/UtilityReading"
+          },
+          "description": "Collection for recording power or water meter readings. Each document includes denormalized 'adminId' (from the associated Tenant's admin) and 'linkedTenantUserUid' (from the associated Tenant's linked user) for authorization independence and secure list operations. The 'readingId' wildcard represents the unique identifier for a UtilityReading.",
+          "params": [
+            {
+              "name": "readingId",
+              "description": "The unique identifier for a UtilityReading."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/tenant_bills/{tenantBillId}",
+        "definition": {
+          "entityName": "TenantBill",
+          "schema": {
+            "$ref": "#/backend/entities/TenantBill"
+          },
+          "description": "Collection for calculated bills for specific tenants within a billing period. Each document includes denormalized 'adminId' (from the associated Tenant's admin) and 'linkedTenantUserUid' (from the associated Tenant's linked user) for authorization independence and secure list operations. The 'tenantBillId' wildcard represents the unique identifier for a TenantBill.",
+          "params": [
+            {
+              "name": "tenantBillId",
+              "description": "The unique identifier for a TenantBill."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to be highly secure, scalable, and debuggable, explicitly addressing the 'permission-denied' error by adhering to core design principles, especially Authorization Independence and QAPs. The central strategy involves extensive denormalization of authorization context directly into each document, eliminating the need for expensive and insecure `get()` calls in security rules. \n\n1.  **Authorization Independence (CRITICAL):** Each document in the `tenants`, `billing_periods`, `utility_readings`, and `tenant_bills` collections will include denormalized authorization fields: `adminId` (the Firebase UID of the administrator responsible for the record) and `linkedTenantUserUid` (the Firebase UID of the tenant user associated with the record, if one exists). This ensures that any access request can be authorized by checking `request.auth.uid` directly against `resource.data.adminId` or `resource.data.linkedTenantUserUid` without fetching parent documents or other related records. This design prevents the 'Missing or insufficient permissions' errors that often arise from complex `get()` dependencies. For example, a `UtilityReading` will explicitly carry the `adminId` of its managing administrator and the `linkedTenantUserUid` of its associated tenant, allowing atomic read/write operations.\n\n2.  **QAPs (Rules are not Filters):** This structure facilitates secure `list` operations (Query-Appended Permissions). Instead of relying on security rules to filter results, client-side queries will include `where()` clauses that align with the authorization fields. \n    *   **For Administrators:** An admin user will query for data they manage using `collectionRef.where('adminId', '==', request.auth.uid)`. The security rules will then simply allow `list` if `request.auth.uid == resource.data.adminId`. This ensures only relevant documents are returned and authorized.\n    *   **For Tenants:** A tenant user will query for their own data using `collectionRef.where('linkedTenantUserUid', '==', request.auth.uid)`. The security rules will allow `list` if `request.auth.uid == resource.data.linkedTenantUserUid`. This enables secure and efficient retrieval of personal bills and readings.\n\n3.  **Structural Segregation:** All documents within a given collection (`/tenants`, `/billing_periods`, `/utility_readings`, `/tenant_bills`) share a homogeneous security posture. This means all tenants are managed by an `adminId` and can optionally link to a `linkedTenantUserUid`, simplifying the rules for that collection. \n\n4.  **Access Modeling:** The design uses a combination of Path-Based ownership (for implicitly user-scoped collections like `/user_profiles` if that entity were present) and the `Membership Map` concept for the `adminId` and `linkedTenantUserUid` denormalized fields. `adminId` acts as a direct `ownerId` for admin access, while `linkedTenantUserUid` provides direct access for the associated tenant.\n\n5.  **Data Clarity and Predictability:** The use of `adminId` and `linkedTenantUserUid` as consistent authorization fields across all relevant entities ensures predictable schema and clear intent regarding who can access what. All wildcards (`{tenantId}`, `{billingPeriodId}`, `{readingId}`, `{tenantBillId}`) are descriptive.\n\nThis approach directly addresses the permission error by moving authorization logic from complex, error-prone rule evaluations into explicit, denormalized document fields that are efficiently queried and securely validated, adhering strictly to the mandated design principles."
+  }
+}
