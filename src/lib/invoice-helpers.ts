@@ -15,7 +15,7 @@ async function imageToDataUrl(src: string): Promise<string | null> {
   if (typeof window === 'undefined') return null; // Safety check for SSR
   
   try {
-    const response = await fetch(src, { cache: 'force-cache' });
+    const response = await fetch(src, { cache: 'no-cache' });
     if (!response.ok) return null;
     
     const blob = await response.blob();
@@ -46,12 +46,12 @@ const generateSingleInvoiceContent = (invoiceData: InvoiceData, copyTitle: strin
           columns: [ 
             [ 
               { text: 'Bill To:', style: 'subheader' }, 
-              { text: invoiceData.clientName, style: 'defaultCompact' }, 
+              { text: invoiceData.clientName, style: 'defaultCompact', bold: true }, 
               { text: `Stall No: ${invoiceData.stallNo}`, style: 'defaultCompact' }, 
             ], 
             [ 
               { text: 'Billing Period:', style: 'subheader', alignment: 'right' as const }, 
-              { text: `${invoiceData.billingMonth} ${invoiceData.billingYear}`, alignment: 'right' as const, style: 'defaultCompact' }, 
+              { text: `${invoiceData.billingMonth} ${invoiceData.billingYear}`, alignment: 'right' as const, style: 'defaultCompact', bold: true }, 
             ] 
           ], 
           columnGap: 10, 
@@ -81,14 +81,14 @@ const generateSingleInvoiceContent = (invoiceData: InvoiceData, copyTitle: strin
             ] 
           }, 
           layout: { 
-            hLineWidth: (i: number, node: any) => 0.5, 
-            vLineWidth: (i: number, node: any) => 0.5, 
+            hLineWidth: () => 0.5, 
+            vLineWidth: () => 0.5, 
             hLineColor: () => '#BFBFBF', 
             vLineColor: () => '#BFBFBF', 
             paddingLeft: () => 3, 
             paddingRight: () => 3, 
-            paddingTop: () => 1, 
-            paddingBottom: () => 1 
+            paddingTop: () => 2, 
+            paddingBottom: () => 2 
           } 
         },
         { 
@@ -196,12 +196,12 @@ const generateBatchInvoiceContent = (invoiceData: InvoiceData) => {
           columns: [ 
             [ 
               { text: 'Bill To:', style: 'subheader' }, 
-              { text: invoiceData.clientName, style: 'defaultCompact' }, 
+              { text: invoiceData.clientName, style: 'defaultCompact', bold: true }, 
               { text: `Stall No: ${invoiceData.stallNo}`, style: 'defaultCompact' }, 
             ], 
             [ 
               { text: 'Billing For:', style: 'subheader', alignment: 'right' as const }, 
-              { text: "Consolidated - All Selected Periods", alignment: 'right' as const, style: 'defaultCompact' }, 
+              { text: "Consolidated - All Selected Periods", alignment: 'right' as const, style: 'defaultCompact', bold: true }, 
             ] 
           ], 
           columnGap: 10, 
@@ -211,14 +211,14 @@ const generateBatchInvoiceContent = (invoiceData: InvoiceData) => {
           style: 'itemsTable', 
           table: { widths: ['*', 50, 60, 65], body: tableBody }, 
           layout: { 
-            hLineWidth: (i: number, node: any) => 0.5, 
-            vLineWidth: (i: number, node: any) => 0.5, 
+            hLineWidth: () => 0.5, 
+            vLineWidth: () => 0.5, 
             hLineColor: () => '#BFBFBF', 
             vLineColor: () => '#BFBFBF', 
             paddingLeft: () => 3, 
             paddingRight: () => 3, 
-            paddingTop: () => 1, 
-            paddingBottom: () => 1 
+            paddingTop: () => 2, 
+            paddingBottom: () => 2 
           } 
         },
         { margin: [0, 2, 0, 2] as const, table: { widths: ['*'], body: [[]]}, layout: 'noBorders' },
@@ -293,7 +293,7 @@ export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'ba
 
     const companyHeader: any[] = [];
     if (logoDataUrl) {
-        companyHeader.push({ image: logoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const });
+        companyHeader.push({ image: logoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 5] as const });
     }
     companyHeader.push(
         { text: invoiceData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
@@ -303,9 +303,9 @@ export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'ba
         companyHeader.push({ text: invoiceData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const });
     }
 
-    let invoiceContent;
+    let invoiceContentBody;
     if (type === 'single') {
-        invoiceContent = [ 
+        invoiceContentBody = [ 
           ...generateSingleInvoiceContent(invoiceData, "Client's Copy"), 
           { text: ' ', margin: [0, 10, 0, 10] }, 
           { canvas: [{ type: 'line', x1: 5, y1: 5, x2: 515, y2: 5, dash: { length: 5, space: 2 }, lineColor: '#aaaaaa' }], margin: [0, 0, 0, 10] }, 
@@ -313,18 +313,17 @@ export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'ba
           ...generateSingleInvoiceContent(invoiceData, "Office Copy") 
         ];
     } else { // Batch
-        invoiceContent = generateBatchInvoiceContent(invoiceData);
+        invoiceContentBody = generateBatchInvoiceContent(invoiceData);
     }
     
     const documentDefinition: any = {
       content: [
-        {
-          columns: [
-            companyHeader,
-            { stack: invoiceContent, width: '*' }
-          ],
-          columnGap: 10
-        }
+        // Put company info at the very top, full width
+        { stack: companyHeader, margin: [0, 0, 0, 10] },
+        // A separator line between header and invoice content
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 545, y2: 0, lineWidth: 1, lineColor: '#1E40AF' }], margin: [0, 0, 0, 15] },
+        // Stack the rest of the invoice content below
+        { stack: invoiceContentBody }
       ],
       defaultStyle: { fontSize: 7.5, lineHeight: 1.0, font: "Roboto" },
       styles: { 
@@ -349,6 +348,5 @@ export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'ba
       }
     };
 
-    // pdfMake.download() is a client-side only method
     pdfMake.createPdf(documentDefinition).download(`Invoice-${invoiceData.invoiceNumber}.pdf`);
 };
