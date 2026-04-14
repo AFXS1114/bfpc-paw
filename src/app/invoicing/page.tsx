@@ -83,7 +83,6 @@ export default function InvoicingPage() {
     };
   }, [selectedModule]);
 
-  // Fetch clients, performers, signatories, verifiers
   useEffect(() => {
     const unsubClients = onSnapshot(query(collection(db, "clients"), orderBy("clientName", "asc")), snap => { setClients(snap.docs.map(d => ({ id: d.id, ...d.data() } as ClientDocument))); setIsLoadingClients(false); }, err => { console.error("Err clients:", err); toast({ title: "Error", description: "Failed to fetch clients." }); setIsLoadingClients(false); });
     const unsubPerformers = onSnapshot(query(collection(db, "reading-performers"), orderBy("name", "asc")), snap => { setReadingPerformers(snap.docs.map(d => ({ id: d.id, ...d.data() } as ReadingPerformerDocument))); setIsLoadingReadingPerformers(false); }, err => { console.error("Err performers:", err); toast({ title: "Error", description: "Failed to fetch reading performers." }); setIsLoadingReadingPerformers(false); });
@@ -125,7 +124,6 @@ export default function InvoicingPage() {
       }
       const readingDoc = readingSnapshot.docs[0].data() as PowerReadingDocument | WaterReadingDocument;
 
-      // 1. Check for manual rate first
       let basicRate = 0;
       let motherBillTotalAmount = 0;
       let motherBillTotalConsumption = 0;
@@ -142,9 +140,7 @@ export default function InvoicingPage() {
       if (!manualRateSnapshot.empty) {
         const manualRateDoc = manualRateSnapshot.docs[0].data() as MonthlyRateDocument;
         basicRate = manualRateDoc.rate;
-        console.log("Using manual rate override:", basicRate);
       } else {
-        // 2. Fallback to mother bill
         const motherBillQuery = query(
           collection(db, "mother-bills"),
           where("utilityType", "==", utilityConfig.utilityType),
@@ -179,6 +175,8 @@ export default function InvoicingPage() {
       const verifier = verifiers.find(v => v.id === selectedVerifierId);
 
       const currentDate = new Date();
+      
+      // Conditionally construct InvoiceData to avoid undefined fields for Firestore
       const generatedInvoiceData: InvoiceData = {
         clientName: client.clientName,
         stallNo: client.stallNo,
@@ -187,12 +185,8 @@ export default function InvoicingPage() {
         
         clientPreviousReading: readingDoc.previousReading,
         clientPresentReading: readingDoc.presentReading,
-        clientTotalKwh: utilityConfig.utilityType === 'power' ? consumptionValue : undefined,
-        clientTotalM3: utilityConfig.utilityType === 'water' ? consumptionValue : undefined,
         consumptionUnit: utilityConfig.consumptionUnit,
 
-        motherBillTotalAmount: motherBillTotalAmount > 0 ? motherBillTotalAmount : undefined,
-        motherBillTotalConsumption: motherBillTotalConsumption > 0 ? motherBillTotalConsumption : undefined,
         basicRate: basicRate,
         amountBeforeVAT: amountBeforeVAT,
         vatAmount: vatAmount,
@@ -204,14 +198,30 @@ export default function InvoicingPage() {
         companyName: "BULAN FISH PORT COMPLEX",
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
         paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office.",
-        
-        readingPerformerName: performer?.name,
-        readingPerformerPosition: performer?.position,
-        signatoryName: signatory?.name,
-        signatoryPosition: signatory?.position,
-        verifierName: verifier?.name,
-        verifierDesignation: verifier?.designation,
       };
+
+      if (utilityConfig.utilityType === 'power') {
+        generatedInvoiceData.clientTotalKwh = consumptionValue;
+      } else {
+        generatedInvoiceData.clientTotalM3 = consumptionValue;
+      }
+
+      if (motherBillTotalAmount > 0) generatedInvoiceData.motherBillTotalAmount = motherBillTotalAmount;
+      if (motherBillTotalConsumption > 0) generatedInvoiceData.motherBillTotalConsumption = motherBillTotalConsumption;
+      
+      if (performer) {
+        generatedInvoiceData.readingPerformerName = performer.name;
+        generatedInvoiceData.readingPerformerPosition = performer.position;
+      }
+      if (signatory) {
+        generatedInvoiceData.signatoryName = signatory.name;
+        generatedInvoiceData.signatoryPosition = signatory.position;
+      }
+      if (verifier) {
+        generatedInvoiceData.verifierName = verifier.name;
+        generatedInvoiceData.verifierDesignation = verifier.designation;
+      }
+
       setInvoiceData(generatedInvoiceData);
       toast({ title: "Invoice Data Ready" });
 
@@ -247,7 +257,7 @@ export default function InvoicingPage() {
             billingPeriodDescription: `${utilityConfig.utilityType.charAt(0).toUpperCase() + utilityConfig.utilityType.slice(1)} - ${invoiceData.billingMonth} ${invoiceData.billingYear}`,
             totalAmountDue: invoiceData.totalAmountDue,
             status: 'unpaid',
-            regenerationData: invoiceData, // Save the complete data for redownload
+            regenerationData: invoiceData,
             createdAt: serverTimestamp(),
         };
         await addDoc(collection(db, "invoices"), invoiceRecord);
@@ -353,7 +363,7 @@ export default function InvoicingPage() {
                     <p><strong>Client:</strong> {invoiceData.clientName} ({invoiceData.stallNo})</p>
                     <p><strong>Period:</strong> {invoiceData.billingMonth} {invoiceData.billingYear}</p>
                     <p><strong>Total {invoiceData.consumptionUnit}:</strong> {(invoiceData.clientTotalKwh ?? invoiceData.clientTotalM3)?.toLocaleString() ?? 'N/A'}</p>
-                    <p><strong>Multiplier Rate:</strong> P{invoiceData.basicRate.toFixed(4)}</p>
+                    <p><strong>Multiplier Rate:</strong> P{(invoiceData.basicRate ?? 0).toFixed(4)}</p>
                     <p><strong>Total Amount Due:</strong> P{invoiceData.totalAmountDue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
             </CardContent>

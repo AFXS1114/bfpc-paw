@@ -89,8 +89,8 @@ export default function BatchInvoicePowerPage() {
       const readingsQuery = query(
         collection(db, "power-readings"),
         where("clientId", "==", selectedClientId),
-        orderBy("billingYear", "asc"), // Order by year first
-        orderBy("billingMonth", "asc") // Then by month
+        orderBy("billingYear", "asc"),
+        orderBy("billingMonth", "asc")
       );
       const snapshot = await getDocs(readingsQuery);
       const fetchedReadings = snapshot.docs.map(doc => {
@@ -210,7 +210,6 @@ export default function BatchInvoicePowerPage() {
       try {
         let basicRate = 0;
 
-        // 1. Check for manual rate override first
         const manualRateQuery = query(
           collection(db, "monthly-rates"),
           where("utilityType", "==", "power"),
@@ -223,7 +222,6 @@ export default function BatchInvoicePowerPage() {
         if (!manualRateSnapshot.empty) {
           basicRate = (manualRateSnapshot.docs[0].data() as MonthlyRateDocument).rate;
         } else {
-          // 2. Fallback to mother bill
           const motherBillQuery = query(
             collection(db, "mother-bills"),
             where("utilityType", "==", "power"),
@@ -278,9 +276,7 @@ export default function BatchInvoicePowerPage() {
         const monthAIndex = MONTHS_ARRAY.indexOf(monthAStr);
         const monthBIndex = MONTHS_ARRAY.indexOf(monthBStr);
 
-        if (yearA !== yearB) {
-            return yearA - yearB;
-        }
+        if (yearA !== yearB) return yearA - yearB;
         return monthAIndex - monthBIndex;
     });
 
@@ -303,15 +299,21 @@ export default function BatchInvoicePowerPage() {
         invoiceDate: displayInvoiceDate,
         companyName: "BULAN FISH PORT COMPLEX",
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
-        companyAddressLine2: "", 
         paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office.",
-        signatoryName: signatoryDetails?.name,
-        signatoryPosition: signatoryDetails?.position,
-        readingPerformerName: readingPerformerDetails?.name,
-        readingPerformerPosition: readingPerformerDetails?.position,
-        verifierName: verifierDetails?.name,
-        verifierDesignation: verifierDetails?.designation,
     };
+
+    if (signatoryDetails) {
+      consolidatedInvoiceData.signatoryName = signatoryDetails.name;
+      consolidatedInvoiceData.signatoryPosition = signatoryDetails.position;
+    }
+    if (readingPerformerDetails) {
+      consolidatedInvoiceData.readingPerformerName = readingPerformerDetails.name;
+      consolidatedInvoiceData.readingPerformerPosition = readingPerformerDetails.position;
+    }
+    if (verifierDetails) {
+      consolidatedInvoiceData.verifierName = verifierDetails.name;
+      consolidatedInvoiceData.verifierDesignation = verifierDetails.designation;
+    }
     
     try {
       await generatePdf(consolidatedInvoiceData, 'batch');
