@@ -1,15 +1,4 @@
-
 import type { InvoiceData } from "@/types";
-import pdfMake from "pdfmake/build/pdfmake";
-import pdfFonts from "pdfmake/build/vfs_fonts";
-
-// Ensure pdfMake VFS fonts are properly assigned for client-side generation
-if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
-} else if (pdfFonts && typeof pdfFonts === 'object' && Object.keys(pdfFonts).length > 0) {
-    // Fallback for different import structures
-    (pdfMake as any).vfs = (pdfFonts as any).default?.pdfMake?.vfs || pdfFonts;
-}
 
 async function imageToDataUrl(src: string): Promise<string | null> {
   if (typeof window === 'undefined') return null; // Safety check for SSR
@@ -32,12 +21,14 @@ async function imageToDataUrl(src: string): Promise<string | null> {
 }
 
 // Single Invoice Template Content
-const generateSingleInvoiceContent = (invoiceData: InvoiceData, copyTitle: string) => {
+const generateSingleInvoiceContent = (invoiceData: InvoiceData, copyTitle: string, companyHeader: any[]) => {
     const formatCurrency = (amount: number) => `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const consumptionUnit = invoiceData.consumptionUnit || 'units';
     const totalConsumptionValue = invoiceData.clientTotalKwh ?? invoiceData.clientTotalM3 ?? 0;
     
     return [
+        { stack: companyHeader, margin: [0, 0, 0, 5] },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 545, y2: 0, lineWidth: 1, lineColor: '#1E40AF' }], margin: [0, 0, 0, 10] },
         { text: `INVOICE (${copyTitle})`, style: 'invoiceTitle', alignment: 'right' as const },
         { text: `Invoice #: ${invoiceData.invoiceNumber}`, alignment: 'right' as const, style: 'small' },
         { text: `Date: ${invoiceData.invoiceDate}`, alignment: 'right' as const, style: 'small' },
@@ -167,7 +158,7 @@ const generateSingleInvoiceContent = (invoiceData: InvoiceData, copyTitle: strin
 };
 
 // Batch Invoice Template Content
-const generateBatchInvoiceContent = (invoiceData: InvoiceData) => {
+const generateBatchInvoiceContent = (invoiceData: InvoiceData, companyHeader: any[]) => {
     const formatCurrency = (amount: number) => `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const tableBody: any[] = [ 
       [ 
@@ -188,6 +179,8 @@ const generateBatchInvoiceContent = (invoiceData: InvoiceData) => {
     });
 
     return [
+        { stack: companyHeader, margin: [0, 0, 0, 5] },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 545, y2: 0, lineWidth: 1, lineColor: '#1E40AF' }], margin: [0, 0, 0, 10] },
         { text: `INVOICE`, style: 'invoiceTitle', alignment: 'right' as const },
         { text: `Invoice #: ${invoiceData.invoiceNumber}`, alignment: 'right' as const, style: 'small' },
         { text: `Date: ${invoiceData.invoiceDate}`, alignment: 'right' as const, style: 'small' },
@@ -280,13 +273,17 @@ const generateBatchInvoiceContent = (invoiceData: InvoiceData) => {
  * This function runs entirely on the client side.
  */
 export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'batch') => {
-    // Re-verify VFS fonts are attached before generation
-    if (!(pdfMake as any).vfs) {
-        if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
-          (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
-        } else {
-          throw new Error("PDF generation failed: Fonts not loaded. Please reload the page.");
-        }
+    if (typeof window === 'undefined') return;
+
+    // Dynamically import pdfmake and fonts to avoid SSR crashes
+    const pdfMake = (await import("pdfmake/build/pdfmake")).default;
+    const pdfFonts = (await import("pdfmake/build/vfs_fonts")).default;
+
+    // Handle various pdfFonts export formats
+    if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
+      (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
+    } else {
+      (pdfMake as any).vfs = (pdfFonts as any).default?.pdfMake?.vfs || pdfFonts;
     }
     
     const logoDataUrl = await imageToDataUrl('/company-logo.png');
@@ -306,25 +303,18 @@ export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'ba
     let invoiceContentBody;
     if (type === 'single') {
         invoiceContentBody = [ 
-          ...generateSingleInvoiceContent(invoiceData, "Client's Copy"), 
+          ...generateSingleInvoiceContent(invoiceData, "Client's Copy", companyHeader), 
           { text: ' ', margin: [0, 10, 0, 10] }, 
           { canvas: [{ type: 'line', x1: 5, y1: 5, x2: 515, y2: 5, dash: { length: 5, space: 2 }, lineColor: '#aaaaaa' }], margin: [0, 0, 0, 10] }, 
           { text: ' ', margin: [0, 10, 0, 10] }, 
-          ...generateSingleInvoiceContent(invoiceData, "Office Copy") 
+          ...generateSingleInvoiceContent(invoiceData, "Office Copy", companyHeader) 
         ];
     } else { // Batch
-        invoiceContentBody = generateBatchInvoiceContent(invoiceData);
+        invoiceContentBody = generateBatchInvoiceContent(invoiceData, companyHeader);
     }
     
     const documentDefinition: any = {
-      content: [
-        // Put company info at the very top, full width
-        { stack: companyHeader, margin: [0, 0, 0, 10] },
-        // A separator line between header and invoice content
-        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 545, y2: 0, lineWidth: 1, lineColor: '#1E40AF' }], margin: [0, 0, 0, 15] },
-        // Stack the rest of the invoice content below
-        { stack: invoiceContentBody }
-      ],
+      content: invoiceContentBody,
       defaultStyle: { fontSize: 7.5, lineHeight: 1.0, font: "Roboto" },
       styles: { 
         header: { fontSize: 10, bold: true, margin: [0, 0, 0, 1], color: '#333333' }, 

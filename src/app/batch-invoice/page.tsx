@@ -1,9 +1,6 @@
-
-
 "use client";
 
-import type { ChangeEvent } from 'react';
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,37 +27,20 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit, Timestamp, addDoc, serverTimestamp } from "firebase/firestore";
-import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument, InvoiceRecordEntry } from "@/types";
+import type { ClientDocument, PowerReadingDocument, MotherBillDocument, InvoiceData, VerifierDocument, InvoiceRecordEntry, MonthlyRateDocument } from "@/types";
 import { Search, Loader2, Download, Layers } from "lucide-react";
 import { format, isValid } from "date-fns";
-
-import pdfMake from "pdfmake/build/pdfmake";
-import pdfFonts from "pdfmake/build/vfs_fonts";
-
-if (pdfFonts && (pdfFonts as any).pdfMake && (pdfFonts as any).pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
-} else if (pdfFonts && (pdfFonts as any).default && (pdfFonts as any).default.pdfMake && (pdfFonts as any).default.pdfMake.vfs) {
-  (pdfMake as any).vfs = (pdfFonts as any).default.pdfMake.vfs;
-} else if (pdfFonts && typeof pdfFonts === 'object' && Object.keys(pdfFonts).length > 0 && !(pdfFonts as any).pdfMake) {
-    (pdfMake as any).vfs = pdfFonts;
-    if (!((pdfMake as any).vfs && Object.keys((pdfMake as any).vfs).length > 0)) {
-        (pdfMake as any).vfs = undefined; 
-    }
-} else {
-  console.error("Failed to load pdfMake VFS fonts on Batch Invoice page. Structure of 'pdfFonts':", JSON.stringify(pdfFonts, null, 2));
-}
-
+import { generatePdf } from '@/lib/invoice-helpers';
 
 const MONTHS_ARRAY = [ 
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
 
-export default function BatchInvoicePowerPage() {
+export default function BatchInvoiceGenericPage() {
   const { toast } = useToast();
   const [clients, setClients] = useState<ClientDocument[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
@@ -106,34 +86,24 @@ export default function BatchInvoicePowerPage() {
       const readingsQuery = query(
         collection(db, "power-readings"),
         where("clientId", "==", selectedClientId),
-        orderBy("billingYear", "asc"), // Order by year first
-        orderBy("billingMonth", "asc") // Then by month
+        orderBy("billingYear", "asc"),
+        orderBy("billingMonth", "asc")
       );
       const snapshot = await getDocs(readingsQuery);
       const fetchedReadings = snapshot.docs.map(doc => {
         const data = doc.data();
-        // Ensure dateBilled and createdAt are properly converted from Timestamp to Date
-        let dateBilled = new Date(); // Default to now if conversion fails
+        let dateBilled = new Date(); 
         if (data.dateBilled && (data.dateBilled as Timestamp).toDate) {
             dateBilled = (data.dateBilled as Timestamp).toDate();
-        } else if (data.dateBilled) { // Handle if it's already a Date string or object (less likely from Firestore directly)
+        } else if (data.dateBilled) { 
             const parsedDate = new Date(data.dateBilled);
             if (isValid(parsedDate)) dateBilled = parsedDate;
-        }
-
-        let createdAt = new Date(); // Default to now
-        if (data.createdAt && (data.createdAt as Timestamp).toDate) {
-            createdAt = (data.createdAt as Timestamp).toDate();
-        } else if (data.createdAt) {
-            const parsedCreatedAt = new Date(data.createdAt);
-            if (isValid(parsedCreatedAt)) createdAt = parsedCreatedAt;
         }
         
         return {
           ...data,
           id: doc.id,
           dateBilled: dateBilled,
-          createdAt: createdAt,
         } as PowerReadingDocument;
       });
       setPowerReadings(fetchedReadings);
@@ -171,173 +141,12 @@ export default function BatchInvoicePowerPage() {
 
   const isAllSelected = powerReadings.length > 0 && selectedReadingIds.size === powerReadings.length;
 
-  async function imageToDataUrl(src: string): Promise<string | null> {
-    try {
-      const response = await fetch(src);
-      if (!response.ok) {
-        console.error(`Failed to fetch image: ${response.status} ${response.statusText} for src: ${src}`);
-        return null;
-      }
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = (error) => {
-          console.error("FileReader error:", error);
-          reject(error);
-        };
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error("Error converting image to data URL:", error);
-      return null;
-    }
-  }
-  
-  const generateConsolidatedInvoiceContent = (invoiceData: InvoiceData, companyLogoDataUrl: string | null) => {
-    const formatCurrency = (amount: number) => `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    
-    const companyHeader: any[] = [];
-    if (companyLogoDataUrl) {
-        companyHeader.push({ image: companyLogoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 2] as const });
-    }
-    companyHeader.push(
-        { text: invoiceData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
-        { text: invoiceData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const}
-    );
-    if (invoiceData.companyAddressLine2) {
-        companyHeader.push({ text: invoiceData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const });
-    }
-
-    const tableBody: any[] = [
-      [ // Headers
-        { text: 'Billing Period', style: 'tableHeader' },
-        { text: 'Cons.\n(kWh)', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Rate\n(P/kWh)', style: 'tableHeader', alignment: 'right' as const },
-        { text: 'Amount\n(P)', style: 'tableHeader', alignment: 'right' as const },
-      ]
-    ];
-
-    invoiceData.lineItems?.forEach(item => {
-      tableBody.push([
-        item.description,
-        { text: item.consumption.toLocaleString(), alignment: 'right' as const },
-        { text: `P${item.rate.toFixed(4)}`, alignment: 'right' as const },
-        { text: formatCurrency(item.amount), alignment: 'right' as const },
-      ]);
-    });
-
-
-    return [
-      {
-        columns: [
-          companyHeader,
-          [
-            { text: `INVOICE`, style: 'invoiceTitle', alignment: 'right' as const },
-            { text: `Invoice #: ${invoiceData.invoiceNumber}`, alignment: 'right' as const, style: 'small' },
-            { text: `Date: ${invoiceData.invoiceDate}`, alignment: 'right' as const, style: 'small' },
-          ]
-        ],
-        columnGap: 10,
-        margin: [0,0,0,10]
-      },
-      { canvas: [{ type: 'line' as const, x1: 0, y1: 3, x2: 515, y2: 3, lineWidth: 0.5, lineColor: '#cccccc' }], margin: [0, 3, 0, 5] as const },
-      {
-        columns: [
-          [
-            { text: 'Bill To:', style: 'subheader' },
-            { text: invoiceData.clientName, style: 'defaultCompact' },
-            { text: `Stall No: ${invoiceData.stallNo}`, style: 'defaultCompact' },
-          ],
-          [
-            { text: 'Billing For:', style: 'subheader', alignment: 'right' as const },
-            { text: (invoiceData.billingMonth === "Various" ? "All Recorded Periods" : `${invoiceData.billingMonth} ${invoiceData.billingYear}`), alignment: 'right' as const, style: 'defaultCompact' },
-          ]
-        ],
-        columnGap: 10,
-        margin: [0, 0, 0, 5] as const,
-      },
-      {
-        style: 'itemsTable',
-        table: {
-          widths: ['*', 50, 60, 65], // Description, Cons, Rate, Amount
-          body: tableBody
-        },
-        layout: {
-           hLineWidth: function (i: number, node: any) { return (i === 0 || i === node.table.body.length) ? 0.5 : 0.5; },
-           vLineWidth: function (i: number, node: any) { return 0.5; },
-           hLineColor: function (i: number, node: any) { return '#BFBFBF'; },
-           vLineColor: function (i: number, node: any) { return '#BFBFBF'; },
-           paddingLeft: function(i: number, node: any) { return 3; },
-           paddingRight: function(i: number, node: any) { return 3; },
-           paddingTop: function(i: number, node: any) { return 1; },
-           paddingBottom: function(i: number, node: any) { return 1; }
-        }
-      },
-      {
-          margin: [0, 2, 0, 2] as const,
-          table: { widths: ['*'], body: [[]]},
-          layout: 'noBorders'
-      },
-      {
-        columns: [
-          { width: '*', text: '' }, 
-          {
-            width: 'auto',
-            style: 'summaryTable',
-            table: {
-              widths: ['auto', 'auto'],
-              body: [
-                ['Subtotal:', { text: formatCurrency(invoiceData.amountBeforeVAT), alignment: 'right' as const }],
-                ['VAT (12%):', { text: formatCurrency(invoiceData.vatAmount), alignment: 'right' as const }],
-                [{ text: 'Total Amount Due:', bold: true, style:'totalAmountKey' }, { text: formatCurrency(invoiceData.totalAmountDue), alignment: 'right' as const, bold: true, style:'totalAmountValue' }]
-              ]
-            },
-            layout: 'noBorders'
-          }
-        ],
-        margin: [0, 2, 0, 5] as const
-      },
-      { text: '', margin: [0,0,0,5] as const}, 
-      invoiceData.paymentInstructions ? { text: 'Payment Instructions:', style: 'subheader', margin: [0, 2, 0, 1] as const } : {text:''}, 
-      invoiceData.paymentInstructions ? { text: invoiceData.paymentInstructions, style: 'defaultCompact', margin: [0, 0, 0, 5] as const } : {text:''}, 
-      {
-          columns: [
-              (invoiceData.readingPerformerName || invoiceData.readingPerformerPosition) ? [
-                  { text: 'Readings Performed by:', style: 'small', margin: [0, 0, 0, 15] as const }, 
-                  { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
-                  { text: invoiceData.readingPerformerName || '', style: 'defaultCompact', bold: true },
-                  { text: invoiceData.readingPerformerPosition || '', style: 'small' },
-              ] : {text: ''},
-              (invoiceData.signatoryName || invoiceData.signatoryPosition) ? [
-                  { text: 'Prepared by:', style: 'small', margin: [0, 0, 0, 15] as const },
-                  { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
-                  { text: invoiceData.signatoryName || '', style: 'defaultCompact', bold: true },
-                  { text: invoiceData.signatoryPosition || '', style: 'small' },
-              ] : {text: ''},
-              (invoiceData.verifierName || invoiceData.verifierDesignation) ? [
-                  { text: 'Checked and Verified by:', style: 'small', margin: [0, 0, 0, 15] as const },
-                  { canvas: [{ type: 'line' as const, x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 0.5 }], margin: [0,0,0,1] as const},
-                  { text: invoiceData.verifierName || '', style: 'defaultCompact', bold: true },
-                  { text: invoiceData.verifierDesignation || '', style: 'small' },
-              ] : {text: ''}
-          ],
-          columnGap: 10,
-          margin: [0, 10, 0, 0] as const,
-      },
-      { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 20, 0, 0] as const }
-    ];
-  };
-
   const handleGenerateBatchPdf = async () => {
     if (selectedReadingIds.size === 0) {
-      toast({ title: "No Readings Selected", description: "Please select at least one reading to generate an invoice.", variant: "destructive" });
+      toast({ title: "No Readings Selected", description: "Please select at least one reading.", variant: "destructive" });
       return;
     }
-    if (!(pdfMake as any).vfs) {
-      toast({ title: "PDF Fonts Not Loaded", description: "Cannot generate PDF. Check console/reload.", variant: "destructive" });
-      return;
-    }
+    
     setIsGeneratingPdf(true);
 
     const client = clients.find(c => c.id === selectedClientId);
@@ -347,186 +156,111 @@ export default function BatchInvoicePowerPage() {
       return;
     }
 
-    const companyLogoDataUrl = await imageToDataUrl('/company-logo.png');
     const lineItems: InvoiceData['lineItems'] = [];
     let overallAmountBeforeVAT = 0;
     let hasErrors = false;
 
-    let signatoryDetails: { name: string; position: string } | undefined = undefined;
+    // Fetch personnel
+    let signatoryDetails, performerDetails, verifierDetails;
     try {
-      const signatoriesQuery = query(collection(db, "signatories"), orderBy("createdAt", "desc"), limit(1));
-      const signatorySnapshot = await getDocs(signatoriesQuery);
-      if (!signatorySnapshot.empty) {
-        const signatoryDoc = signatorySnapshot.docs[0].data() as any;
-        signatoryDetails = { name: signatoryDoc.name, position: signatoryDoc.position };
-      }
-    } catch (sigError) { console.warn("Could not fetch signatory for batch:", sigError); }
-
-    let readingPerformerDetails: { name: string; position: string } | undefined = undefined;
-    try {
-      const readingPerformersQuery = query(collection(db, "reading-performers"), orderBy("createdAt", "desc"), limit(1));
-      const readingPerformerSnapshot = await getDocs(readingPerformersQuery);
-      if (!readingPerformerSnapshot.empty) {
-        const performerDoc = readingPerformerSnapshot.docs[0].data() as any;
-        readingPerformerDetails = { name: performerDoc.name, position: performerDoc.position };
-      }
-    } catch (perfError) { console.warn("Could not fetch reading performer for batch:", perfError); }
-
-    let verifierDetails: { name: string; designation: string } | undefined = undefined;
-    try {
-      const verifiersQuery = query(collection(db, "verifiers"), orderBy("createdAt", "desc"), limit(1));
-      const verifierSnapshot = await getDocs(verifiersQuery);
-      if (!verifierSnapshot.empty) {
-        const verifierDoc = verifierSnapshot.docs[0].data() as VerifierDocument;
-        verifierDetails = { name: verifierDoc.name, designation: verifierDoc.designation };
-      }
-    } catch (verError) { console.warn("Could not fetch verifier for batch:", verError); }
-
+      const sigSnap = await getDocs(query(collection(db, "signatories"), orderBy("createdAt", "desc"), limit(1)));
+      if (!sigSnap.empty) signatoryDetails = sigSnap.docs[0].data();
+      const perfSnap = await getDocs(query(collection(db, "reading-performers"), orderBy("createdAt", "desc"), limit(1)));
+      if (!perfSnap.empty) performerDetails = perfSnap.docs[0].data();
+      const verSnap = await getDocs(query(collection(db, "verifiers"), orderBy("createdAt", "desc"), limit(1)));
+      if (!verSnap.empty) verifierDetails = verSnap.docs[0].data();
+    } catch (e) { console.warn("Personnel fetch error:", e); }
 
     for (const readingId of selectedReadingIds) {
       const reading = powerReadings.find(r => r.id === readingId);
       if (!reading) continue;
 
       try {
-        const motherBillQuery = query(
-          collection(db, "mother-bills"),
-          where("utilityType", "==", "power"),
-          where("billingMonth", "==", reading.billingMonth),
-          where("billingYear", "==", reading.billingYear),
-          limit(1)
-        );
-        const motherBillSnapshot = await getDocs(motherBillQuery);
-
-        if (motherBillSnapshot.empty) {
-          toast({ title: `Mother Bill Missing`, description: `No mother bill for ${reading.billingMonth} ${reading.billingYear}. Skipping this period.`, variant: "default", duration: 5000 });
-          hasErrors = true;
-          continue;
-        }
-        const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
-        if (motherBill.totalConsumption === 0) {
-          toast({ title: `Invalid Mother Bill`, description: `Mother bill for ${reading.billingMonth} ${reading.billingYear} has zero consumption. Skipping.`, variant: "default", duration: 5000 });
-          hasErrors = true;
-          continue;
-        }
-
-        const basicRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
-        const itemAmountBeforeVAT = basicRate * reading.totalKwh;
-        overallAmountBeforeVAT += itemAmountBeforeVAT;
+        let basicRate = 0;
+        // Check manual rates first
+        const rateSnap = await getDocs(query(collection(db, "monthly-rates"), where("utilityType", "==", "power"), where("billingMonth", "==", reading.billingMonth), where("billingYear", "==", reading.billingYear), limit(1)));
         
+        if (!rateSnap.empty) {
+          basicRate = (rateSnap.docs[0].data() as MonthlyRateDocument).rate;
+        } else {
+          const mbSnap = await getDocs(query(collection(db, "mother-bills"), where("utilityType", "==", "power"), where("billingMonth", "==", reading.billingMonth), where("billingYear", "==", reading.billingYear), limit(1)));
+          if (mbSnap.empty || mbSnap.docs[0].data().totalConsumption === 0) {
+            hasErrors = true;
+            continue;
+          }
+          const mb = mbSnap.docs[0].data() as MotherBillDocument;
+          basicRate = mb.totalAmountBilled / mb.totalConsumption;
+        }
+
+        const itemAmount = basicRate * reading.totalKwh;
+        overallAmountBeforeVAT += itemAmount;
         lineItems.push({
             description: `Power Consumption - ${reading.billingMonth} ${reading.billingYear}`,
             consumption: reading.totalKwh,
             rate: basicRate,
-            amount: itemAmountBeforeVAT,
+            amount: itemAmount,
         });
 
       } catch (error) {
-        console.error(`Error processing reading for ${reading.billingMonth} ${reading.billingYear}:`, error);
-        toast({ title: `Error for ${reading.billingMonth} ${reading.billingYear}`, description: "Could not process this reading. Skipping.", variant: "destructive" });
+        console.error("Batch item error:", error);
         hasErrors = true;
       }
     }
 
     if (lineItems.length === 0) {
-        toast({ title: "No Billable Items", description: "Could not generate any billable items from the selected readings due to errors.", variant: "destructive" });
+        toast({ title: "No Billable Items", description: "No valid rates found for the selected periods.", variant: "destructive" });
         setIsGeneratingPdf(false);
         return;
     }
 
     lineItems.sort((a, b) => {
-        const [monthAStr, yearAStr] = a.description.split(" - ")[1].split(" ");
-        const [monthBStr, yearBStr] = b.description.split(" - ")[1].split(" ");
-        const yearA = parseInt(yearAStr);
-        const yearB = parseInt(yearBStr);
-        const monthAIndex = MONTHS_ARRAY.indexOf(monthAStr);
-        const monthBIndex = MONTHS_ARRAY.indexOf(monthBStr);
-
-        if (yearA !== yearB) {
-            return yearA - yearB;
-        }
-        return monthAIndex - monthBIndex;
+        const [mA, yA] = a.description.split(" - ")[1].split(" ");
+        const [mB, yB] = b.description.split(" - ")[1].split(" ");
+        return (parseInt(yA) - parseInt(yB)) || (MONTHS_ARRAY.indexOf(mA) - MONTHS_ARRAY.indexOf(mB));
     });
-
-    const overallVatAmount = overallAmountBeforeVAT * 0.12;
-    const overallTotalAmountDue = overallAmountBeforeVAT + overallVatAmount;
-    const currentDate = new Date();
-    const displayInvoiceDate = format(currentDate, "MMMM dd, yyyy");
 
     const consolidatedInvoiceData: InvoiceData = {
         clientName: client.clientName,
         stallNo: client.stallNo,
         billingMonth: "Various", 
-        billingYear: 0, // Using 0 to indicate "All Periods" when month is "Various"
+        billingYear: 0,
+        consumptionUnit: 'kWh',
         lineItems: lineItems,
         amountBeforeVAT: overallAmountBeforeVAT,
-        vatAmount: overallVatAmount,
-        totalAmountDue: overallTotalAmountDue,
-        invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-BATCH-ALLTIME`,
-        invoiceDate: displayInvoiceDate,
+        vatAmount: overallAmountBeforeVAT * 0.12,
+        totalAmountDue: overallAmountBeforeVAT * 1.12,
+        invoiceNumber: `${client.stallNo.replace(/[^A-Z0-9]/ig, '')}-BATCH-POWER`,
+        invoiceDate: format(new Date(), "MMMM dd, yyyy"),
         companyName: "BULAN FISH PORT COMPLEX",
         companyAddressLine1: "Pier 2, Zone-4, Bulan, Sorsogon",
-        companyAddressLine2: "", 
-        paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.\nPayment can be made at the administration office.",
-        signatoryName: signatoryDetails?.name,
-        signatoryPosition: signatoryDetails?.position,
-        readingPerformerName: readingPerformerDetails?.name,
-        readingPerformerPosition: readingPerformerDetails?.position,
-        verifierName: verifierDetails?.name,
-        verifierDesignation: verifierDetails?.designation,
+        paymentInstructions: "Please make all checks payable to BULAN FISH PORT COMPLEX.",
     };
-    
-    const documentDefinition: any = {
-      content: generateConsolidatedInvoiceContent(consolidatedInvoiceData, companyLogoDataUrl),
-      defaultStyle: { fontSize: 7.5, lineHeight: 1.0, font: "Roboto" },
-      styles: {
-        header: { fontSize: 10, bold: true, margin: [0, 0, 0, 1], color: '#333333' }, 
-        address: { fontSize: 6.5, margin: [0,0,0,1], color: '#4A4A4A'},
-        invoiceTitle: { fontSize: 14, bold: true, color: '#1E40AF', margin: [0, 0, 0, 1] }, 
-        subheader: { fontSize: 7.5, bold: true, margin: [0, 1, 0, 1], color: '#333333' }, 
-        itemsTable: { margin: [0, 2, 0, 2], fontSize: 6.5 }, 
-        tableHeader: { bold: true, fontSize: 6.5, color: '#1F2937'}, 
-        summaryTable: { margin: [0,0,0,2], fontSize: 7}, 
-        totalAmountKey: {fontSize: 7.5, bold:true, color: '#1E40AF'}, 
-        totalAmountValue: {fontSize: 7.5, bold:true, color: '#1E40AF'}, 
-        smallHeader: { fontSize: 6, color: '#4A4A4A'}, 
-        small: { fontSize: 6, color: '#4A4A4A'}, 
-        defaultCompact: {fontSize: 7, color: '#333333'}, 
-      },
-      pageSize: 'A4',
-      pageOrientation: 'portrait',
-      pageMargins: [25, 25, 25, 25],
-      footer: function(currentPage: number, pageCount: number) { 
-        return { text: `Page ${currentPage.toString()} of ${pageCount.toString()}`, alignment: 'center' as const, style: 'small', margin: [0,0,0,10] as const }; 
-      }
-    };
+
+    if (signatoryDetails) { consolidatedInvoiceData.signatoryName = signatoryDetails.name; consolidatedInvoiceData.signatoryPosition = signatoryDetails.position; }
+    if (performerDetails) { consolidatedInvoiceData.readingPerformerName = performerDetails.name; consolidatedInvoiceData.readingPerformerPosition = performerDetails.position; }
+    if (verifierDetails) { consolidatedInvoiceData.verifierName = verifierDetails.name; consolidatedInvoiceData.verifierDesignation = verifierDetails.designation; }
     
     try {
-      pdfMake.createPdf(documentDefinition).download(`BatchInvoice-${client.stallNo}-AllPeriods.pdf`);
-      
-      // Save invoice record to Firestore
-      const invoiceRecord: Omit<InvoiceRecordEntry, 'id' | 'createdAt' | 'invoiceDate' | 'paidAt'> & { createdAt: any, invoiceDate: any, paidAt?: any } = {
+      await generatePdf(consolidatedInvoiceData, 'batch');
+      await addDoc(collection(db, "invoices"), {
           invoiceNumber: consolidatedInvoiceData.invoiceNumber,
           invoiceType: 'batch',
+          utilityType: 'power',
           clientId: client.id,
           clientName: client.clientName,
           stallNo: client.stallNo,
-          invoiceDate: serverTimestamp(), // Date PDF was generated/saved
-          displayInvoiceDate: consolidatedInvoiceData.invoiceDate, // Date shown on PDF
-          billingPeriodDescription: "Consolidated Power - All Selected Periods",
+          invoiceDate: serverTimestamp(),
+          displayInvoiceDate: consolidatedInvoiceData.invoiceDate,
+          billingPeriodDescription: "Consolidated Power - Multiple Periods",
           totalAmountDue: consolidatedInvoiceData.totalAmountDue,
           status: 'unpaid',
+          regenerationData: consolidatedInvoiceData,
           createdAt: serverTimestamp(),
-      };
-      await addDoc(collection(db, "invoices"), invoiceRecord);
+      } as InvoiceRecordEntry);
 
-      if (!hasErrors) {
-        toast({ title: "Batch Invoice PDF Exported & Saved", description: `Consolidated invoice for ${client.clientName} (All Periods) downloaded and record saved.` });
-      } else {
-        toast({ title: "Batch Invoice PDF Exported & Saved (with Skips)", description: `Consolidated invoice downloaded and record saved, but some periods were skipped due to missing data.`, variant: "default", duration: 7000 });
-      }
+      toast({ title: "Batch Invoice Exported", description: `Consolidated invoice for ${client.clientName} downloaded.` });
     } catch (e) {
-        console.error("Error exporting batch PDF or saving invoice: ", e);
-        toast({ title: "PDF Export Failed", description: "Could not export batch invoice to PDF or save record.", variant: "destructive"});
+        toast({ title: "Export Failed", variant: "destructive"});
     } finally {
         setIsGeneratingPdf(false);
     }
@@ -583,28 +317,21 @@ export default function BatchInvoicePowerPage() {
         </Card>
 
         {isLoadingReadings && (
-            <Card className="shadow-lg mt-6">
-                <CardHeader><CardTitle>Fetching Readings...</CardTitle></CardHeader>
-                <CardContent className="flex justify-center items-center py-10">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                </CardContent>
-            </Card>
+            <div className="flex justify-center items-center py-20">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
         )}
 
         {powerReadings.length > 0 && !isLoadingReadings && (
           <Card className="shadow-lg mt-6">
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                    <CardTitle>Select Readings for Consolidated Batch Invoice</CardTitle>
-                    <CardDescription>Client: {clients.find(c=>c.id === selectedClientId)?.clientName} - All Recorded Readings</CardDescription>
+                    <CardTitle>Select Readings</CardTitle>
+                    <CardDescription>Client: {clients.find(c=>c.id === selectedClientId)?.clientName}</CardDescription>
                 </div>
                  <Button onClick={handleGenerateBatchPdf} disabled={isGeneratingPdf || selectedReadingIds.size === 0}>
-                    {isGeneratingPdf ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                        <Download className="mr-2 h-4 w-4" />
-                    )}
-                    Generate Consolidated PDF & Save ({selectedReadingIds.size})
+                    {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    Export & Save ({selectedReadingIds.size})
                 </Button>
             </CardHeader>
             <CardContent>
@@ -612,11 +339,7 @@ export default function BatchInvoicePowerPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[50px]">
-                        <Checkbox
-                            checked={isAllSelected}
-                            onCheckedChange={handleSelectAllReadings}
-                            aria-label="Select all readings"
-                        />
+                        <Checkbox checked={isAllSelected} onCheckedChange={handleSelectAllReadings} />
                     </TableHead>
                     <TableHead>Billing Period</TableHead>
                     <TableHead>Date Billed</TableHead>
@@ -626,18 +349,17 @@ export default function BatchInvoicePowerPage() {
                 </TableHeader>
                 <TableBody>
                   {powerReadings.map((reading) => (
-                    <TableRow key={reading.id} data-state={selectedReadingIds.has(reading.id) ? "selected" : ""}>
+                    <TableRow key={reading.id}>
                       <TableCell>
                         <Checkbox
                           checked={selectedReadingIds.has(reading.id)}
                           onCheckedChange={(checked) => handleSelectReading(reading.id, checked)}
-                          aria-label={`Select reading for ${reading.billingMonth} ${reading.billingYear}`}
                         />
                       </TableCell>
                       <TableCell>{reading.billingMonth} {reading.billingYear}</TableCell>
                       <TableCell>{reading.dateBilled ? format(new Date(reading.dateBilled), "MMM dd, yyyy") : 'N/A'}</TableCell>
                       <TableCell className="text-right font-semibold">{reading.totalKwh.toLocaleString()}</TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={reading.notes}>{reading.notes || "-"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{reading.notes || "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

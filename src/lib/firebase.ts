@@ -1,17 +1,15 @@
+
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp, FirebaseOptions } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// IMPORTANT: Using hardcoded Firebase config.
-// For production, it's recommended to use environment variables.
+// Synchronized with Studio project credentials
 const firebaseConfig: FirebaseOptions = {
-  apiKey: "AIzaSyByV02yQsF8ycteDW83vRI_HJWzxeCD3kA",
-  authDomain: "bfpc-paw.firebaseapp.com",
-  projectId: "bfpc-paw",
-  storageBucket: "bfpc-paw.firebasestorage.app", // Corrected: removed .app from the end as per typical Firebase config
-  messagingSenderId: "14462727123",
-  appId: "1:14462727123:web:b05d3fd1c3d263c701f526",
-  measurementId: "G-X5T4JZGGZF"
+  projectId: "studio-95806379-26728",
+  appId: "1:358708284671:web:95db2e617319c5319d10ca",
+  apiKey: "AIzaSyBB8dGyuHWZcxQ19OjxOCN1qzYPqvb2IfQ",
+  authDomain: "studio-95806379-26728.firebaseapp.com",
+  messagingSenderId: "358708284671"
 };
 
 // Initialize Firebase
