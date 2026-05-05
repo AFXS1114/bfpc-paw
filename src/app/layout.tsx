@@ -73,6 +73,7 @@ export default function RootLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [isVerifying, setIsVerifying] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const { toast } = useToast(); 
   const [userRole, setUserRole] = useState<AppUserRole | null>(null);
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -89,7 +90,7 @@ export default function RootLayout({
     localStorage.removeItem('pawUserRole'); 
     localStorage.removeItem('pawUserId'); 
     localStorage.removeItem('pawUserName');
-    localStorage.removeItem('paw-app-module'); // Clear selected module on logout
+    localStorage.removeItem('paw-app-module'); 
     setUserRole(null);
     
     toast({
@@ -105,7 +106,6 @@ export default function RootLayout({
       clearTimeout(inactivityTimerRef.current);
     }
     
-    // Only set the timer if the user is verified and not on the login page
     const isVerified = localStorage.getItem('pawUserVerified') === 'true';
     if (isVerified && pathname !== '/login') {
       inactivityTimerRef.current = setTimeout(() => {
@@ -119,6 +119,7 @@ export default function RootLayout({
   }, [resetInactivityTimer]);
 
   useEffect(() => {
+    setMounted(true);
     document.title = 'PAW - Power & Water Management';
 
     const isVerified = localStorage.getItem('pawUserVerified') === 'true';
@@ -138,11 +139,10 @@ export default function RootLayout({
       setIsVerifying(false);
     }
 
-    // Inactivity timer logic
     if (isVerified && pathname !== '/login') {
       const events: (keyof WindowEventMap)[] = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
       events.forEach(event => window.addEventListener(event, handleUserActivity));
-      resetInactivityTimer(); // Start or reset the timer
+      resetInactivityTimer(); 
 
       return () => {
         events.forEach(event => window.removeEventListener(event, handleUserActivity));
@@ -150,21 +150,29 @@ export default function RootLayout({
           clearTimeout(inactivityTimerRef.current);
         }
       };
-    } else {
-      // If not verified or on login page, clear any existing timer
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-      }
     }
-
   }, [pathname, router, toast, handleUserActivity, resetInactivityTimer]);
 
+
+  if (!mounted) {
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+           <div className="flex items-center justify-center min-h-screen bg-background">
+             <Loader2 className="h-16 w-16 animate-spin text-primary" />
+           </div>
+        </body>
+      </html>
+    );
+  }
 
   if (isVerifying && pathname !== '/login') {
     return (
       <html lang="en" suppressHydrationWarning>
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex items-center justify-center min-h-screen bg-background`}>
-          <Loader2 className="h-16 w-16 animate-spin text-primary" />
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+          <div className="flex items-center justify-center min-h-screen bg-background">
+            <Loader2 className="h-16 w-16 animate-spin text-primary" />
+          </div>
         </body>
       </html>
     );

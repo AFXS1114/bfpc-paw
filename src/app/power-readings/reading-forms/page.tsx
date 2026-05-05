@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -34,34 +33,6 @@ import { collection, query, where, orderBy, onSnapshot, getDocs, Timestamp, limi
 import type { ClientDocument, PowerReadingDocument, MonthlyClientSummaryData, ClientMonthlyConsumption, MotherBillDocument } from "@/types";
 import { FileText, Search, Loader2, Download, Eye, History, BarChart3 } from "lucide-react";
 import { format, isValid } from "date-fns";
-
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
-
-async function imageToDataUrl(src: string): Promise<string | null> {
-  try {
-    const response = await fetch(src);
-    if (!response.ok) {
-      console.error(`Failed to fetch image: ${response.status} ${response.statusText} for src: ${src}`);
-      return null;
-    }
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = (error) => {
-        console.error("FileReader error:", error);
-        reject(error);
-      };
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error("Error converting image to data URL:", error);
-    return null;
-  }
-}
-
 
 const MONTHS_ARRAY = [
   "January", "February", "March", "April", "May", "June",
@@ -115,8 +86,6 @@ export default function ReadingFormsPage() {
     });
     return () => unsubscribe();
   }, [toast]);
-
-  const clientDetail = clients.find(c => c.id === selectedClientId);
 
   const resetViews = () => {
     setYearlyReadings(null);
@@ -232,7 +201,6 @@ export default function ReadingFormsPage() {
     }
     
     try {
-      // Fetch Mother Bill for the rate
       let motherBillRate: number | null = null;
       const motherBillQuery = query(
         collection(db, "mother-bills"),
@@ -246,11 +214,7 @@ export default function ReadingFormsPage() {
         const motherBill = motherBillSnapshot.docs[0].data() as MotherBillDocument;
         if (motherBill.totalConsumption > 0) {
           motherBillRate = motherBill.totalAmountBilled / motherBill.totalConsumption;
-        } else {
-           toast({ title: "Rate Warning", description: "Mother bill consumption is zero, rate cannot be calculated.", variant: "default" });
         }
-      } else {
-        toast({ title: "Rate Warning", description: "Mother bill not found for the selected period, rate cannot be displayed.", variant: "default" });
       }
 
       const readingsQuery = query(
@@ -272,30 +236,21 @@ export default function ReadingFormsPage() {
           clientId: client.id,
           clientName: client.clientName,
           stallNo: client.stallNo,
-          powerMeterNo: client.powerMeterNo, // Added for the new form
+          powerMeterNo: client.powerMeterNo,
           previousReading: readingForClient?.previousReading ?? null,
           presentReading: readingForClient?.presentReading ?? null,
           totalKwh: kwh,
         };
       });
       
-      clientConsumptions.sort((a, b) => {
-        const stallNoA = parseInt(a.stallNo.replace(/[^0-9]/g, ''), 10);
-        const stallNoB = parseInt(b.stallNo.replace(/[^0-9]/g, ''), 10);
-
-        if (!isNaN(stallNoA) && !isNaN(stallNoB) && stallNoA !== stallNoB) {
-            return stallNoA - stallNoB;
-        }
-        return a.stallNo.localeCompare(b.stallNo);
-      });
-
+      clientConsumptions.sort((a, b) => a.stallNo.localeCompare(b.stallNo, undefined, { numeric: true }));
 
       setMonthlyClientSummaryData({
         month: selectedMonth,
         year: parseInt(selectedYear, 10),
         clientConsumptions,
         overallTotalKwh,
-        motherBillRate, // Added for rate display
+        motherBillRate,
       });
       setDisplayMode('monthlyClientSummary'); 
       setFormTitle(`Electric Meter Reading Form - ${selectedMonth} ${selectedYear}`);
@@ -311,6 +266,7 @@ export default function ReadingFormsPage() {
 
 
   const handleExportToPdf = async () => {
+    if (typeof window === 'undefined') return;
     if (!displayMode || (!yearlyReadings && !allClientReadings && !monthlyClientSummaryData)) {
       toast({ title: "No Data", description: "Generate the form data first.", variant: "destructive" });
       return;
@@ -325,6 +281,9 @@ export default function ReadingFormsPage() {
     setIsExportingPdf(true);
 
     try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+
       const originalOverflow = formElement.style.overflow;
       const originalHeight = formElement.style.height;
       formElement.style.overflow = 'visible';
@@ -353,16 +312,14 @@ export default function ReadingFormsPage() {
       const imgHeight = imgProps.height;
       
       const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      
       const w = imgWidth * ratio * 0.95; 
       const h = imgHeight * ratio * 0.95;
-      
       const x = (pdfWidth - w) / 2; 
       const y = (pdfHeight - h) / 2; 
 
       pdf.addImage(imgData, 'PNG', x, y, w, h);
       
-      let pdfFilename = `ReadingReport.pdf`;
+      let pdfFilename = `PowerReadingReport.pdf`;
        if (displayMode === 'yearly' && selectedClientDetails && selectedYear) {
         pdfFilename = `YearlyReadingForm-${selectedClientDetails.stallNo}-${selectedYear}.pdf`;
       } else if (displayMode === 'allTime' && selectedClientDetails) {
@@ -374,7 +331,7 @@ export default function ReadingFormsPage() {
       toast({ title: "PDF Exported", description: "Report has been downloaded." });
 
     } catch (e) {
-      console.error("Error exporting PDF with html2canvas: ", e);
+      console.error("Error exporting PDF: ", e);
       toast({ title: "PDF Export Failed", description: "Could not export report to PDF.", variant: "destructive" });
     } finally {
       setIsExportingPdf(false);
@@ -592,8 +549,7 @@ export default function ReadingFormsPage() {
               </Button>
             </CardHeader>
             <CardContent className="overflow-x-auto bg-background p-2">
-                <div id="reading-form-to-export" className="p-4 bg-white text-black max-w-[794px] min-h-[1123px] mx-auto my-4 border shadow-sm"> {/* A4-like container for PDF export */}
-                    {/* Conditional Rendering based on displayMode */}
+                <div id="reading-form-to-export" className="p-4 bg-white text-black max-w-[794px] min-h-[1123px] mx-auto my-4 border shadow-sm">
                     {displayMode === 'monthlyClientSummary' && monthlyClientSummaryData && (
                         <>
                             <div className="text-center mb-3">
@@ -647,7 +603,6 @@ export default function ReadingFormsPage() {
                         </>
                     )}
                     
-                    {/* Fallback for when displayMode is set but no specific data structure matches (should not happen with current logic) */}
                     {isLoadingForm && (
                          <div className="flex justify-center items-center py-10">
                             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -664,4 +619,3 @@ export default function ReadingFormsPage() {
     </main>
   );
 }
-

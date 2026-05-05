@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -32,9 +31,6 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, getDocs, limit } from "firebase/firestore";
 import type { ClientDocument, WaterReadingDocument, MonthlyClientSummaryDataWater, ClientMonthlyConsumptionWater, MotherBillDocument } from "@/types";
 import { Search, Loader2, Download, Eye, History, BarChart3 } from "lucide-react";
-
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 
 const MONTHS_ARRAY = [
   "January", "February", "March", "April", "May", "June",
@@ -251,6 +247,7 @@ export default function ReadingFormsPage() {
   };
 
   const handleExportToPdf = async () => {
+    if (typeof window === 'undefined') return;
     if (!displayMode || (!yearlyReadings && !allClientReadings && !monthlyClientSummaryData)) {
       toast({ title: "No Data", description: "Generate the form data first.", variant: "destructive" });
       return;
@@ -263,6 +260,9 @@ export default function ReadingFormsPage() {
     }
     setIsExportingPdf(true);
     try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+
       const originalOverflow = formElement.style.overflow;
       const originalHeight = formElement.style.height;
       formElement.style.overflow = 'visible';
