@@ -21,14 +21,27 @@ async function imageToDataUrl(src: string): Promise<string | null> {
 }
 
 // Single Invoice Template Content
-const generateSingleInvoiceContent = (invoiceData: InvoiceData, copyTitle: string, companyHeader: any[]) => {
+const generateSingleInvoiceContent = (invoiceData: InvoiceData, copyTitle: string, logoDataUrl: string | null) => {
     const formatCurrency = (amount: number) => `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const consumptionUnit = invoiceData.consumptionUnit || 'units';
     const totalConsumptionValue = invoiceData.clientTotalKwh ?? invoiceData.clientTotalM3 ?? 0;
     
+    const companyHeaderColumns: any[] = [];
+    if (logoDataUrl) {
+        companyHeaderColumns.push({ image: logoDataUrl, width: 40, margin: [0, 0, 10, 0] as const });
+    }
+    const textStack = [
+        { text: invoiceData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
+        { text: invoiceData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const}
+    ];
+    if (invoiceData.companyAddressLine2) {
+        textStack.push({ text: invoiceData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const });
+    }
+    companyHeaderColumns.push({ stack: textStack, width: '*', margin: [0, 5, 0, 0] as const });
+
     return [
-        { stack: companyHeader, margin: [0, 0, 0, 5] },
-        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 545, y2: 0, lineWidth: 1, lineColor: '#1E40AF' }], margin: [0, 0, 0, 10] },
+        { columns: companyHeaderColumns, margin: [0, 0, 0, 5] as const },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 545, y2: 0, lineWidth: 1, lineColor: '#1E40AF' }], margin: [0, 0, 0, 8] as const },
         { text: `INVOICE (${copyTitle})`, style: 'invoiceTitle', alignment: 'right' as const },
         { text: `Invoice #: ${invoiceData.invoiceNumber}`, alignment: 'right' as const, style: 'small' },
         { text: `Date: ${invoiceData.invoiceDate}`, alignment: 'right' as const, style: 'small' },
@@ -153,12 +166,12 @@ const generateSingleInvoiceContent = (invoiceData: InvoiceData, copyTitle: strin
           columnGap: 10, 
           margin: [0, 10, 0, 0] as const, 
         },
-        { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 20, 0, 0] as const }
+        { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 10, 0, 0] as const }
     ];
 };
 
 // Batch Invoice Template Content
-const generateBatchInvoiceContent = (invoiceData: InvoiceData, companyHeader: any[]) => {
+const generateBatchInvoiceContent = (invoiceData: InvoiceData, logoDataUrl: string | null) => {
     const formatCurrency = (amount: number) => `P${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const tableBody: any[] = [ 
       [ 
@@ -178,9 +191,22 @@ const generateBatchInvoiceContent = (invoiceData: InvoiceData, companyHeader: an
       ]); 
     });
 
+    const companyHeaderColumns: any[] = [];
+    if (logoDataUrl) {
+        companyHeaderColumns.push({ image: logoDataUrl, width: 40, margin: [0, 0, 10, 0] as const });
+    }
+    const textStack = [
+        { text: invoiceData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
+        { text: invoiceData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const}
+    ];
+    if (invoiceData.companyAddressLine2) {
+        textStack.push({ text: invoiceData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const });
+    }
+    companyHeaderColumns.push({ stack: textStack, width: '*', margin: [0, 5, 0, 0] as const });
+
     return [
-        { stack: companyHeader, margin: [0, 0, 0, 5] },
-        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 545, y2: 0, lineWidth: 1, lineColor: '#1E40AF' }], margin: [0, 0, 0, 10] },
+        { columns: companyHeaderColumns, margin: [0, 0, 0, 5] as const },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 545, y2: 0, lineWidth: 1, lineColor: '#1E40AF' }], margin: [0, 0, 0, 8] as const },
         { text: `INVOICE`, style: 'invoiceTitle', alignment: 'right' as const },
         { text: `Invoice #: ${invoiceData.invoiceNumber}`, alignment: 'right' as const, style: 'small' },
         { text: `Date: ${invoiceData.invoiceDate}`, alignment: 'right' as const, style: 'small' },
@@ -264,7 +290,7 @@ const generateBatchInvoiceContent = (invoiceData: InvoiceData, companyHeader: an
           columnGap: 10, 
           margin: [0, 10, 0, 0] as const, 
         },
-        { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 20, 0, 0] as const }
+        { text: 'Received by: _________________________', style: 'defaultCompact', alignment: 'left' as const, margin: [0, 10, 0, 0] as const }
     ];
 };
 
@@ -272,7 +298,7 @@ const generateBatchInvoiceContent = (invoiceData: InvoiceData, companyHeader: an
  * Generates and downloads a PDF invoice using pdfMake.
  * This function runs entirely on the client side.
  */
-export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'batch') => {
+export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'batch', action: 'download' | 'getDataUrl' = 'download'): Promise<string | void> => {
     if (typeof window === 'undefined') return;
 
     // Dynamically import pdfmake and fonts to avoid SSR crashes
@@ -288,29 +314,17 @@ export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'ba
     
     const logoDataUrl = await imageToDataUrl('/company-logo.png');
 
-    const companyHeader: any[] = [];
-    if (logoDataUrl) {
-        companyHeader.push({ image: logoDataUrl, width: 50, alignment: 'left' as const, margin: [0, 0, 0, 5] as const });
-    }
-    companyHeader.push(
-        { text: invoiceData.companyName, style: 'header', alignment: 'left' as const, margin: [0,0,0,0] as const},
-        { text: invoiceData.companyAddressLine1, style: 'address', alignment: 'left' as const, margin: [0,0,0,0] as const}
-    );
-     if (invoiceData.companyAddressLine2) {
-        companyHeader.push({ text: invoiceData.companyAddressLine2, style: 'address', alignment: 'left' as const, margin: [0,0,0,1] as const });
-    }
-
     let invoiceContentBody;
     if (type === 'single') {
         invoiceContentBody = [ 
-          ...generateSingleInvoiceContent(invoiceData, "Client's Copy", companyHeader), 
-          { text: ' ', margin: [0, 10, 0, 10] }, 
-          { canvas: [{ type: 'line', x1: 5, y1: 5, x2: 515, y2: 5, dash: { length: 5, space: 2 }, lineColor: '#aaaaaa' }], margin: [0, 0, 0, 10] }, 
-          { text: ' ', margin: [0, 10, 0, 10] }, 
-          ...generateSingleInvoiceContent(invoiceData, "Office Copy", companyHeader) 
+          ...generateSingleInvoiceContent(invoiceData, "Client's Copy", logoDataUrl), 
+          { text: ' ', margin: [0, 2, 0, 2] }, 
+          { canvas: [{ type: 'line', x1: 5, y1: 5, x2: 515, y2: 5, dash: { length: 5, space: 2 }, lineColor: '#aaaaaa' }], margin: [0, 0, 0, 5] as const }, 
+          { text: ' ', margin: [0, 2, 0, 2] }, 
+          ...generateSingleInvoiceContent(invoiceData, "Office Copy", logoDataUrl) 
         ];
     } else { // Batch
-        invoiceContentBody = generateBatchInvoiceContent(invoiceData, companyHeader);
+        invoiceContentBody = generateBatchInvoiceContent(invoiceData, logoDataUrl);
     }
     
     const documentDefinition: any = {
@@ -338,5 +352,13 @@ export const generatePdf = async (invoiceData: InvoiceData, type: 'single' | 'ba
       }
     };
 
-    pdfMake.createPdf(documentDefinition).download(`Invoice-${invoiceData.invoiceNumber}.pdf`);
+    if (action === 'getDataUrl') {
+        return new Promise((resolve) => {
+            pdfMake.createPdf(documentDefinition).getDataUrl((dataUrl: string) => {
+                resolve(dataUrl);
+            });
+        });
+    } else {
+        pdfMake.createPdf(documentDefinition).download(`Invoice-${invoiceData.invoiceNumber}.pdf`);
+    }
 };

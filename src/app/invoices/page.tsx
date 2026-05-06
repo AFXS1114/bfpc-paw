@@ -11,6 +11,12 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -34,7 +40,7 @@ import { collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp
 import type { InvoiceRecordDocument, ClientDocument, UtilityType } from "@/types";
 import { MarkAsPaidModal } from "@/components/mark-as-paid-modal";
 import { format } from "date-fns";
-import { Archive, CheckCircle, Clock, FileText, DollarSign, Download, Loader2, ListFilter, XCircle } from "lucide-react";
+import { Archive, CheckCircle, Clock, FileText, DollarSign, Download, Loader2, ListFilter, XCircle, Eye } from "lucide-react";
 import { generatePdf } from "@/lib/invoice-helpers";
 
 const MONTHS_ARRAY = [ 
@@ -57,6 +63,9 @@ export default function InvoicesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecordDocument | null>(null);
   const [isRedownloadingId, setIsRedownloadingId] = useState<string | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [isPreviewLoadingId, setIsPreviewLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoadingInvoices(true);
@@ -211,6 +220,28 @@ export default function InvoicesPage() {
     }
   };
 
+  const handlePreview = async (invoice: InvoiceRecordDocument) => {
+    if (!invoice.regenerationData) {
+      toast({ title: "Error", description: "This invoice lacks the data needed for previewing.", variant: "destructive"});
+      return;
+    }
+    setIsPreviewLoadingId(invoice.id);
+    try {
+      const dataUrl = await generatePdf(invoice.regenerationData, invoice.invoiceType, 'getDataUrl');
+      if (dataUrl) {
+          setPreviewPdfUrl(dataUrl as string);
+          setIsPreviewModalOpen(true);
+      } else {
+          toast({ title: "Preview Failed", description: "Could not generate preview.", variant: "destructive"});
+      }
+    } catch (error) {
+      console.error("Error generating PDF preview: ", error);
+      toast({ title: "Preview Failed", description: (error as Error).message || "Could not generate the PDF preview.", variant: "destructive"});
+    } finally {
+      setIsPreviewLoadingId(null);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
@@ -344,6 +375,20 @@ export default function InvoicesPage() {
                         <Button
                             variant="secondary"
                             size="sm"
+                            onClick={() => handlePreview(invoice)}
+                            disabled={isPreviewLoadingId === invoice.id || !invoice.regenerationData}
+                            title={!invoice.regenerationData ? "Preview not available for this invoice" : "Preview Invoice PDF"}
+                        >
+                            {isPreviewLoadingId === invoice.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Eye className="mr-2 h-4 w-4" />
+                            )}
+                            Preview
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            size="sm"
                             onClick={() => handleRedownload(invoice)}
                             disabled={isRedownloadingId === invoice.id || !invoice.regenerationData}
                             title={!invoice.regenerationData ? "Redownload not available for this invoice" : "Redownload Invoice PDF"}
@@ -377,6 +422,22 @@ export default function InvoicesPage() {
           onConfirm={handleConfirmPayment}
         />
       )}
+      <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Invoice Preview</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 w-full bg-muted/30 rounded-md overflow-hidden">
+            {previewPdfUrl ? (
+              <iframe src={previewPdfUrl} className="w-full h-full border-0" title="PDF Preview" />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
